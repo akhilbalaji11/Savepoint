@@ -19,7 +19,8 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { StarRating } from '../../src/components/ui/StarRating';
-import type { GameDetail, GameStatus, GameSearchResult } from '../../src/domain/types';
+import type { GameDetail, GameStatus, GameSearchResult, InvolvedCompany } from '../../src/domain/types';
+import { useDynamicTheme, hexToRgba } from '../../src/hooks/useDynamicTheme';
 import { gamesApi } from '../../src/lib/api';
 import { supabase } from '../../src/lib/supabase';
 import { withTimeout } from '../../src/lib/withTimeout';
@@ -229,6 +230,37 @@ function PlatformIndicator({ platform }: { platform: string }) {
     );
 }
 
+// Company Credits component
+function CompanyCredits({ involvedCompanies }: { involvedCompanies?: InvolvedCompany[] }) {
+    if (!involvedCompanies || involvedCompanies.length === 0) return null;
+
+    const developers = involvedCompanies.filter(ic => ic.developer);
+    const publishers = involvedCompanies.filter(ic => ic.publisher);
+
+    if (developers.length === 0 && publishers.length === 0) return null;
+
+    return (
+        <View style={styles.creditsSection}>
+            {developers.length > 0 && (
+                <View style={styles.creditRow}>
+                    <Text style={styles.creditLabel}>Developed by</Text>
+                    <Text style={styles.creditValue}>
+                        {developers.map(d => d.company.name).join(', ')}
+                    </Text>
+                </View>
+            )}
+            {publishers.length > 0 && (
+                <View style={styles.creditRow}>
+                    <Text style={styles.creditLabel}>Published by</Text>
+                    <Text style={styles.creditValue}>
+                        {publishers.map(p => p.company.name).join(', ')}
+                    </Text>
+                </View>
+            )}
+        </View>
+    );
+}
+
 export default function GameDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
     const router = useRouter();
@@ -245,6 +277,9 @@ export default function GameDetailScreen() {
         queryFn: () => gamesApi.getById(id),
         staleTime: 1000 * 60 * 60,
     });
+
+    // Dynamic theme based on cover image
+    const dynamicTheme = useDynamicTheme(game?.coverUrl);
 
     // Load user's existing status and rating
     const { data: userActivity } = useQuery({
@@ -437,7 +472,10 @@ export default function GameDetailScreen() {
 
                     {/* Gradients */}
                     <LinearGradient
-                        colors={['rgba(6,6,10,0.3)', 'rgba(6,6,10,0.6)', colors.bg.primary]}
+                        colors={dynamicTheme
+                            ? [hexToRgba(dynamicTheme.dominant, 0.3), hexToRgba(dynamicTheme.dominant, 0.6), colors.bg.primary]
+                            : ['rgba(6,6,10,0.3)', 'rgba(6,6,10,0.6)', colors.bg.primary]
+                        }
                         style={styles.heroGradient}
                     />
                     <HeroShimmer />
@@ -455,7 +493,7 @@ export default function GameDetailScreen() {
                     {/* Game cover + info row */}
                     <View style={styles.gameHeader}>
                         <View style={styles.coverWrapper}>
-                            <View style={styles.coverGlow} />
+                            <View style={[styles.coverGlow, { backgroundColor: dynamicTheme?.vibrant ?? colors.neon.cyan }]} />
                             {game.coverUrl ? (
                                 <Image
                                     source={{ uri: game.coverUrl }}
@@ -516,6 +554,9 @@ export default function GameDetailScreen() {
                             <Text style={styles.descriptionText}>{game.description}</Text>
                         </View>
                     )}
+
+                    {/* Company Credits */}
+                    <CompanyCredits involvedCompanies={game.involvedCompanies} />
 
                     {/* ===== USER ACTIONS ===== */}
                     <View style={styles.actionsSection}>
@@ -649,7 +690,6 @@ const styles = StyleSheet.create({
         right: -8,
         bottom: -8,
         borderRadius: radius.lg + 8,
-        backgroundColor: colors.neon.cyan,
         opacity: 0.15,
     },
     gameCover: {
@@ -757,6 +797,28 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter_400Regular',
         color: colors.text.secondary,
         lineHeight: 24,
+    },
+
+    // Company Credits
+    creditsSection: {
+        marginBottom: spacing.xl,
+        gap: spacing.sm,
+    },
+    creditRow: {
+        flexDirection: 'row',
+        alignItems: 'baseline',
+        gap: spacing.sm,
+    },
+    creditLabel: {
+        fontSize: typography.size.sm,
+        fontFamily: 'Inter_500Medium',
+        color: colors.text.muted,
+    },
+    creditValue: {
+        fontSize: typography.size.sm,
+        fontFamily: 'Inter_600SemiBold',
+        color: colors.text.primary,
+        flex: 1,
     },
 
     // Actions section

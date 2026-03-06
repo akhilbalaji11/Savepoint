@@ -20,6 +20,7 @@ import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 
 import type { ActivityEvent, ActivityType, GameSearchResult, GameStatus } from '../../../src/domain/types';
+import { IGDB_GENRE_IDS } from '../../../src/domain/types';
 import { gamesApi } from '../../../src/lib/api';
 import { buildPreferenceVector, recommend } from '../../../src/lib/recommender';
 import { supabase } from '../../../src/lib/supabase';
@@ -83,7 +84,10 @@ function ShimmerView({ width, height }: { width: number; height: number }) {
 // ===== TRENDING GAME POSTER =====
 function TrendingGamePoster({ game, onPress }: { game: GameSearchResult; onPress?: () => void }) {
     const scaleAnim = useRef(new Animated.Value(1)).current;
+    const [imageError, setImageError] = useState(false);
     const normalizedRating = game.rating ? (game.rating / 20).toFixed(1) : null;
+    const coverUrl = game.coverUrl?.replace('t_cover_big', 't_cover_big_2x');
+    const showImage = coverUrl && !imageError;
 
     const handlePressIn = () => {
         Animated.spring(scaleAnim, {
@@ -114,23 +118,19 @@ function TrendingGamePoster({ game, onPress }: { game: GameSearchResult; onPress
                     {/* Neon glow effect */}
                     <View style={styles.coverGlow} />
 
-                    {game.coverUrl ? (
+                    {showImage ? (
                         <Image
-                            source={{ uri: game.coverUrl.replace('t_cover_big', 't_720_720') }}
+                            source={{ uri: coverUrl }}
                             style={styles.cover}
                             contentFit="cover"
                             transition={200}
+                            onError={() => setImageError(true)}
                         />
                     ) : (
                         <View style={styles.coverPlaceholder}>
                             <Ionicons name="game-controller" size={36} color={colors.text.muted} />
                         </View>
                     )}
-
-                    {/* Holographic shimmer */}
-                    <View style={styles.shimmerContainer} pointerEvents="none">
-                        <ShimmerView width={CARD_WIDTH} height={200} />
-                    </View>
 
                     {/* Bottom gradient */}
                     <LinearGradient
@@ -183,6 +183,7 @@ function RecommendationCard({
     onPress?: () => void;
 }) {
     const scaleAnim = useRef(new Animated.Value(1)).current;
+    const [imageError, setImageError] = useState(false);
 
     const handlePressIn = () => {
         Animated.spring(scaleAnim, {
@@ -201,6 +202,8 @@ function RecommendationCard({
     };
 
     const normalizedRating = recommendation.game.rating ? (recommendation.game.rating / 20).toFixed(1) : null;
+    const coverUrl = recommendation.game.coverUrl?.replace('t_cover_big', 't_cover_big_2x');
+    const showImage = coverUrl && !imageError;
 
     return (
         <TouchableOpacity
@@ -214,21 +217,20 @@ function RecommendationCard({
                 {/* Cover section */}
                 <View style={styles.recommendCoverWrapper}>
                     <View style={styles.recommendGlow} />
-                    {recommendation.game.coverUrl ? (
+                    {showImage ? (
                         <Image
-                            source={{ uri: recommendation.game.coverUrl.replace('t_cover_big', 't_720_720') }}
+                            source={{ uri: coverUrl }}
                             style={styles.recommendCover}
                             contentFit="cover"
                             transition={200}
+                            onError={() => setImageError(true)}
+                            placeholder={{ blurhash: 'LKO2?U%2Tw=w]~RBVZRi};RPxuwH' }}
                         />
                     ) : (
                         <View style={styles.recommendCoverPlaceholder}>
                             <Ionicons name="game-controller" size={28} color={colors.text.muted} />
                         </View>
                     )}
-                    <View style={styles.recommendShimmer} pointerEvents="none">
-                        <ShimmerView width={100} height={130} />
-                    </View>
                 </View>
 
                 {/* Info section */}
@@ -439,17 +441,50 @@ export default function DiscoverScreen() {
             if (mappedReviews.length === 0 && mappedStatuses.length === 0) return [];
 
             const vector = buildPreferenceVector(mappedReviews as any, mappedStatuses as any);
-            const topGenre = Object.entries(vector.genres).sort((a, b) => b[1] - a[1])[0]?.[0];
-            if (!topGenre) return [];
 
-            const { results: candidates } = await gamesApi.search(topGenre, 1);
-            const playedIds = new Set([...mappedReviews.map((r) => r.gameId), ...mappedStatuses.map((s) => s.gameId)]);
-            const unseenCandidates = candidates.filter((c) => !playedIds.has(c.providerId));
+            // Get top 3 genres and convert to IGDB IDs
+            const topGenreIds = Object.entries(vector.genres)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 3)
+                .map(([name]) => IGDB_GENRE_IDS[name])
+                .filter((id): id is number => id !== undefined);
 
-            return recommend(unseenCandidates, mappedReviews as any, mappedStatuses as any, 5);
+            if (topGenreIds.length === 0) return [];
+
+            // Get IGDB provider IDs (not database UUIDs) for exclusion
+            const playedProviderIds = new Set([
+                ...mappedReviews.filter(r => r.game?.providerId).map((r) => r.game!.providerId),
+                ...mappedStatuses.filter(s => s.game?.providerId).map((s) => s.game!.providerId),
+            ]);
+
+            // Use browse API with genre filters, with fallback to text search if it fails
+            try {
+                const { results: candidates } = await gamesApi.browse({
+                    genres: topGenreIds,
+                    minRating: 70, // Quality threshold
+                    sort: 'rating',
+                    sortOrder: 'desc',
+                    excludeIds: Array.from(playedProviderIds),
+                    limit: 30,
+                });
+
+                return recommend(candidates, mappedReviews as any, mappedStatuses as any, 5);
+            } catch (error) {
+                console.error('[recommendations] Browse API failed, falling back to text search:', error);
+                // Fallback to the old text search method if browse fails
+                const topGenre = Object.entries(vector.genres).sort((a, b) => b[1] - a[1])[0]?.[0];
+                if (!topGenre) return [];
+
+                const { results: candidates } = await gamesApi.search(topGenre, 1);
+                const unseenCandidates = candidates.filter((c) => !playedProviderIds.has(c.providerId));
+
+                return recommend(unseenCandidates, mappedReviews as any, mappedStatuses as any, 5);
+            }
         },
         enabled: !!user,
         staleTime: 1000 * 60 * 10,
+        retry: 1,
+        retryDelay: 2000,
     });
 
     const onRefresh = async () => {
@@ -709,10 +744,6 @@ const styles = StyleSheet.create({
         left: 0,
         opacity: 0.6,
     },
-    shimmerContainer: {
-        ...StyleSheet.absoluteFillObject,
-        overflow: 'hidden',
-    },
 
     // Recommendations
     recommendContainer: {
@@ -750,11 +781,6 @@ const styles = StyleSheet.create({
         backgroundColor: colors.bg.tertiary,
         alignItems: 'center',
         justifyContent: 'center',
-    },
-    recommendShimmer: {
-        ...StyleSheet.absoluteFillObject,
-        borderRadius: radius.md,
-        overflow: 'hidden',
     },
     recommendInfo: {
         flex: 1,

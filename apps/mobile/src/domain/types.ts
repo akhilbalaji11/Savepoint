@@ -2,6 +2,7 @@
 
 export type GameStatus = 'played' | 'playing' | 'backlog' | 'wishlist';
 export type Platform = 'PS5' | 'Xbox' | 'Switch' | 'PC' | 'PS4' | 'iOS' | 'Android' | 'Other';
+export type SearchMatchType = 'title' | 'company' | 'character';
 
 // ---- Game Metadata ----
 export interface GameSearchResult {
@@ -14,6 +15,15 @@ export interface GameSearchResult {
     genres: string[];
     platforms: string[];
     rating?: number;      // 0–100 scale from IGDB, normalized to 0–5 in UI
+    matchType?: SearchMatchType;
+}
+
+// ---- Company Credits ----
+export interface InvolvedCompany {
+    company: { id: number; name: string };
+    developer: boolean;
+    publisher: boolean;
+    porting: boolean;
 }
 
 export interface GameDetail extends GameSearchResult {
@@ -21,6 +31,7 @@ export interface GameDetail extends GameSearchResult {
     themes?: string[];
     similarGameIds?: string[];
     metacritic?: number;
+    involvedCompanies?: InvolvedCompany[];
 }
 
 // ---- User / Profile ----
@@ -135,3 +146,63 @@ export interface Recommendation {
     score: number;
     reason: string; // human-readable explanation
 }
+
+// ---- Browse Filters ----
+export interface BrowseFilters {
+    genres?: number[];      // IGDB genre IDs
+    minRating?: number;     // 0-100
+    maxRating?: number;     // 0-100
+    dateFrom?: string;      // ISO date string
+    dateTo?: string;        // ISO date string
+    sort?: 'rating' | 'first_release_date' | 'hypes';
+    sortOrder?: 'asc' | 'desc';
+    excludeIds?: string[];  // Game provider IDs to exclude
+    page?: number;
+    limit?: number;
+}
+
+// IGDB Genre ID mapping (genre name -> IGDB ID)
+export const IGDB_GENRE_IDS: Record<string, number> = {
+    'Action': 4,
+    'Adventure': 31,
+    'RPG': 12,
+    'Shooter': 5,
+    'Indie': 32,
+    'Strategy': 15,
+    'Puzzle': 9,
+    'Racing': 10,
+    'Sports': 14,
+    'Simulation': 13,
+    'Fighting': 6,
+    'Platformer': 8,
+    'Horror': 19,
+    'Music': 7,
+    'Turn-based': 16,
+    'Visual Novel': 34,
+    'Arcade': 33,
+    'MOBA': 11,
+    'Point-and-Click': 2,
+    'Tactical': 24,
+    'Hack and Slash': 25,
+    'Quiz/Trivia': 26,
+    'Pinball': 30,
+};
+
+// Available genres for filter UI (with IGDB IDs)
+export const AVAILABLE_GENRES = [
+    { id: 4, name: 'Action' },
+    { id: 31, name: 'Adventure' },
+    { id: 12, name: 'RPG' },
+    { id: 5, name: 'Shooter' },
+    { id: 32, name: 'Indie' },
+    { id: 15, name: 'Strategy' },
+    { id: 9, name: 'Puzzle' },
+    { id: 10, name: 'Racing' },
+    { id: 14, name: 'Sports' },
+    { id: 13, name: 'Simulation' },
+    { id: 6, name: 'Fighting' },
+    { id: 8, name: 'Platformer' },
+    { id: 19, name: 'Horror' },
+    { id: 34, name: 'Visual Novel' },
+    { id: 33, name: 'Arcade' },
+];

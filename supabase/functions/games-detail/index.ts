@@ -64,7 +64,11 @@ serve(async (req) => {
         // Fetch fresh from IGDB
         const igdbQuery = `
       fields id, name, cover.image_id, first_release_date, genres.name, platforms.name,
-             themes.name, rating, summary, similar_games, storyline;
+             themes.name, rating, summary, similar_games, storyline,
+             involved_companies.company.name,
+             involved_companies.developer,
+             involved_companies.publisher,
+             involved_companies.porting;
       where id = ${providerId};
       limit 1;
     `;

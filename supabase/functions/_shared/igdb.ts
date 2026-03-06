@@ -68,6 +68,33 @@ function coverUrl(coverId: number | undefined, imageId?: string): string | undef
     return `https://images.igdb.com/igdb/image/upload/t_cover_big/${imageId}.jpg`;
 }
 
+// IGDB Genre ID mapping (genre name -> IGDB ID)
+export const IGDB_GENRE_IDS: Record<string, number> = {
+    'Action': 4,
+    'Adventure': 31,
+    'RPG': 12,
+    'Shooter': 5,
+    'Indie': 32,
+    'Strategy': 15,
+    'Puzzle': 9,
+    'Racing': 10,
+    'Sports': 14,
+    'Simulation': 13,
+    'Fighting': 6,
+    'Platformer': 8,
+    'Horror': 19,
+    'Music': 7,
+    'Turn-based': 16,
+    'Visual Novel': 34,
+    'Arcade': 33,
+    'MOBA': 11,
+    'Point-and-Click': 2,
+    'Tactical': 24,
+    'Hack and Slash': 25,
+    'Quiz/Trivia': 26,
+    'Pinball': 30,
+};
+
 export function mapGame(g: any) {
     return {
         providerId: String(g.id),
@@ -85,5 +112,11 @@ export function mapGame(g: any) {
         description: g.summary,
         rating: g.rating ? Math.round(g.rating * 10) / 10 : undefined,
         similarGameIds: (g.similar_games ?? []).map((x: any) => String(x)),
+        involvedCompanies: (g.involved_companies ?? []).map((ic: any) => ({
+            company: { id: ic.company?.id, name: ic.company?.name },
+            developer: ic.developer ?? false,
+            publisher: ic.publisher ?? false,
+            porting: ic.porting ?? false,
+        })),
     };
 }

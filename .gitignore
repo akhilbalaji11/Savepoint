@@ -36,3 +36,6 @@ ios/
 android/
 **/ios/
 **/android/
+
+# Claude Code
+.claude/
