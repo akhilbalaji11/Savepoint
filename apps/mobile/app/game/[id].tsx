@@ -3,9 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
-    ActivityIndicator, Alert, Dimensions,
+    ActivityIndicator,
+    Alert,
+    Animated,
+    Dimensions,
+    Platform,
     ScrollView,
     StyleSheet,
     Text,
@@ -13,16 +17,217 @@ import {
     View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { StarRating } from '../../src/components/ui/StarRating';
-import type { GameDetail, GameStatus } from '../../src/domain/types';
+import type { GameDetail, GameStatus, GameSearchResult } from '../../src/domain/types';
 import { gamesApi } from '../../src/lib/api';
 import { supabase } from '../../src/lib/supabase';
+import { withTimeout } from '../../src/lib/withTimeout';
 import { useAuthStore } from '../../src/stores/authStore';
-import { colors, radius, spacing, STATUS_ICONS, STATUS_LABELS, typography } from '../../src/styles/tokens';
+import { colors, radius, spacing, typography, STATUS_LABELS, STATUS_ICONS, GENRE_COLORS, PLATFORM_COLORS } from '../../src/styles/tokens';
 
-const { width: SCREEN_WIDTH } = Dimensions.get('window');
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
+const HERO_HEIGHT = 320;
 
 const STATUS_ORDER: GameStatus[] = ['played', 'playing', 'backlog', 'wishlist'];
+
+// Animated shimmer for hero
+function HeroShimmer() {
+    const shimmerAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        const animation = Animated.loop(
+            Animated.sequence([
+                Animated.timing(shimmerAnim, {
+                    toValue: 1,
+                    duration: 3000,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(shimmerAnim, {
+                    toValue: 0,
+                    duration: 3000,
+                    useNativeDriver: true,
+                }),
+            ])
+        );
+        animation.start();
+        return () => animation.stop();
+    }, []);
+
+    const translateX = shimmerAnim.interpolate({
+        inputRange: [0, 1],
+        outputRange: [-SCREEN_WIDTH, SCREEN_WIDTH],
+    });
+
+    return (
+        <Animated.View
+            style={[
+                styles.heroShimmer,
+                {
+                    transform: [{ translateX }],
+                    opacity: shimmerAnim.interpolate({
+                        inputRange: [0, 0.5, 1],
+                        outputRange: [0, 0.15, 0],
+                    }),
+                },
+            ]}
+            pointerEvents="none"
+        >
+            <LinearGradient
+                colors={['transparent', 'rgba(255,255,255,0.3)', 'transparent']}
+                start={{ x: 0, y: 0.5 }}
+                end={{ x: 1, y: 0.5 }}
+                style={StyleSheet.absoluteFillObject}
+            />
+        </Animated.View>
+    );
+}
+
+// Status button with glow
+function StatusButton({
+    status,
+    isActive,
+    onPress,
+    isLoading,
+}: {
+    status: GameStatus;
+    isActive: boolean;
+    onPress: () => void;
+    isLoading: boolean;
+}) {
+    const statusColor = colors.status[status];
+    const scaleAnim = useRef(new Animated.Value(1)).current;
+    const glowAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        if (isActive) {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(glowAnim, {
+                        toValue: 1,
+                        duration: 1500,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(glowAnim, {
+                        toValue: 0,
+                        duration: 1500,
+                        useNativeDriver: true,
+                    }),
+                ])
+            ).start();
+        } else {
+            glowAnim.setValue(0);
+        }
+    }, [isActive]);
+
+    const handlePressIn = () => {
+        Animated.spring(scaleAnim, {
+            toValue: 0.92,
+            useNativeDriver: true,
+            friction: 8,
+        }).start();
+    };
+
+    const handlePressOut = () => {
+        Animated.spring(scaleAnim, {
+            toValue: 1,
+            useNativeDriver: true,
+            friction: 8,
+        }).start();
+    };
+
+    return (
+        <TouchableOpacity
+            onPress={onPress}
+            onPressIn={handlePressIn}
+            onPressOut={handlePressOut}
+            activeOpacity={0.9}
+            disabled={isLoading}
+        >
+            <Animated.View
+                style={[
+                    styles.statusBtn,
+                    {
+                        transform: [{ scale: scaleAnim }],
+                        borderColor: isActive ? statusColor : colors.border,
+                        backgroundColor: isActive ? statusColor + '15' : colors.bg.card,
+                    },
+                ]}
+            >
+                {/* Glow effect */}
+                {isActive && (
+                    <Animated.View
+                        style={[
+                            styles.statusBtnGlow,
+                            {
+                                backgroundColor: statusColor,
+                                opacity: glowAnim.interpolate({
+                                    inputRange: [0, 1],
+                                    outputRange: [0.1, 0.3],
+                                }),
+                            },
+                        ]}
+                    />
+                )}
+                <Ionicons
+                    name={STATUS_ICONS[status] as any}
+                    size={20}
+                    color={isActive ? statusColor : colors.text.muted}
+                />
+                <Text
+                    style={[
+                        styles.statusBtnText,
+                        { color: isActive ? statusColor : colors.text.muted },
+                    ]}
+                >
+                    {STATUS_LABELS[status]}
+                </Text>
+            </Animated.View>
+        </TouchableOpacity>
+    );
+}
+
+// Genre chip with dynamic colors
+function GenreChip({ genre }: { genre: string }) {
+    const genreStyle = GENRE_COLORS[genre] || GENRE_COLORS.default;
+    const scaleAnim = useRef(new Animated.Value(0)).current;
+
+    useEffect(() => {
+        Animated.spring(scaleAnim, {
+            toValue: 1,
+            friction: 8,
+            tension: 100,
+            useNativeDriver: true,
+        }).start();
+    }, []);
+
+    return (
+        <Animated.View
+            style={[
+                styles.genreChip,
+                {
+                    backgroundColor: genreStyle.bg,
+                    borderColor: genreStyle.text + '30',
+                    transform: [{ scale: scaleAnim }],
+                },
+            ]}
+        >
+            <Text style={[styles.genreChipText, { color: genreStyle.text }]}>{genre}</Text>
+        </Animated.View>
+    );
+}
+
+// Platform indicator
+function PlatformIndicator({ platform }: { platform: string }) {
+    const platformColor = PLATFORM_COLORS[platform] || colors.text.muted;
+
+    return (
+        <View style={styles.platformIndicator}>
+            <View style={[styles.platformDot, { backgroundColor: platformColor }]} />
+            <Text style={styles.platformText}>{platform}</Text>
+        </View>
+    );
+}
 
 export default function GameDetailScreen() {
     const { id } = useLocalSearchParams<{ id: string }>();
@@ -31,71 +236,161 @@ export default function GameDetailScreen() {
     const { user } = useAuthStore();
     const [currentStatus, setCurrentStatus] = useState<GameStatus | null>(null);
     const [userRating, setUserRating] = useState<number>(0);
+    const [persistedRating, setPersistedRating] = useState<number>(0);
+    const scrollY = useRef(new Animated.Value(0)).current;
 
+    // Load game details
     const { data: game, isLoading } = useQuery<GameDetail>({
         queryKey: ['game-detail', id],
         queryFn: () => gamesApi.getById(id),
-        staleTime: 1000 * 60 * 60, // 1 hour
+        staleTime: 1000 * 60 * 60,
     });
 
-    // Load user's existing status for this game
+    // Load user's existing status and rating
+    const { data: userActivity } = useQuery({
+        queryKey: ['game-user-activity', user?.id, game?.id],
+        queryFn: async () => {
+            if (!user || !game?.id) return { status: null as GameStatus | null, review: null as { rating: number } | null };
+
+            const [{ data: statusData }, { data: reviewData }] = await Promise.all([
+                withTimeout(
+                    supabase
+                        .from('user_game_status')
+                        .select('status')
+                        .eq('user_id', user.id)
+                        .eq('game_id', game.id)
+                        .maybeSingle(),
+                    8_000,
+                    'Load game status'
+                ),
+                withTimeout(
+                    supabase
+                        .from('reviews')
+                        .select('rating')
+                        .eq('user_id', user.id)
+                        .eq('game_id', game.id)
+                        .maybeSingle(),
+                    8_000,
+                    'Load user rating'
+                ),
+            ]);
+
+            return {
+                status: (statusData?.status as GameStatus | undefined) ?? null,
+                review: reviewData ? { rating: Number(reviewData.rating) } : null,
+            };
+        },
+        enabled: !!user && !!game?.id,
+        staleTime: 1000 * 30,
+    });
+
     useEffect(() => {
-        if (!user || !game?.id) return;
-        supabase
-            .from('user_game_status')
-            .select('status')
-            .eq('user_id', user.id)
-            .eq('game_id', game.id)
-            .single()
-            .then(({ data }) => {
-                if (data) setCurrentStatus(data.status as GameStatus);
-            });
+        if (!userActivity) return;
+        setCurrentStatus(userActivity.status);
+        const nextRating = userActivity.review?.rating ?? 0;
+        setUserRating(nextRating);
+        setPersistedRating(nextRating);
+    }, [userActivity]);
 
-        supabase
-            .from('reviews')
-            .select('rating')
-            .eq('user_id', user.id)
-            .eq('game_id', game.id)
-            .single()
-            .then(({ data }) => {
-                if (data) setUserRating(data.rating);
-            });
-    }, [user, game?.id]);
-
+    // Status mutation
     const statusMutation = useMutation({
         mutationFn: async (status: GameStatus | null) => {
-            if (!user || !game?.id) return;
+            if (!user || !game?.id) throw new Error('You must be signed in');
             if (status === null) {
-                await supabase
-                    .from('user_game_status')
-                    .delete()
-                    .eq('user_id', user.id)
-                    .eq('game_id', game.id);
+                const { error } = await withTimeout(
+                    supabase.from('user_game_status').delete().eq('user_id', user.id).eq('game_id', game.id),
+                    8_000,
+                    'Remove status'
+                );
+                if (error) throw error;
             } else {
-                await supabase
-                    .from('user_game_status')
-                    .upsert({ user_id: user.id, game_id: game.id, status, last_updated: new Date().toISOString() });
+                const { error } = await withTimeout(
+                    supabase.from('user_game_status').upsert({
+                        user_id: user.id,
+                        game_id: game.id,
+                        status,
+                        last_updated: new Date().toISOString(),
+                    }),
+                    8_000,
+                    'Update status'
+                );
+                if (error) throw error;
 
-                // Write activity event
-                await supabase.from('activity_events').insert({
-                    actor_id: user.id,
-                    type: 'status_change',
-                    entity_id: game.id,
-                    metadata: { game_title: game.title, cover_url: game.coverUrl, status },
-                });
+                // Activity event
+                await withTimeout(
+                    supabase.from('activity_events').insert({
+                        actor_id: user.id,
+                        type: 'status_change',
+                        entity_id: game.id,
+                        metadata: { game_title: game.title, cover_url: game.coverUrl, status },
+                    }),
+                    8_000,
+                    'Create activity'
+                );
             }
         },
         onSuccess: (_, status) => {
             setCurrentStatus(status);
-            qc.invalidateQueries({ queryKey: ['profile-stats', user?.id] });
+            qc.invalidateQueries({ queryKey: ['game-user-activity'] });
+            qc.invalidateQueries({ queryKey: ['profile-statuses'] });
         },
-        onError: () => Alert.alert('Error', 'Could not update status'),
+        onError: (error: Error) => Alert.alert('Error', error.message),
+    });
+
+    // Rating mutation
+    const ratingMutation = useMutation({
+        mutationFn: async (newRating: number) => {
+            if (!user || !game?.id) throw new Error('You must be signed in');
+
+            const { data: existing } = await withTimeout(
+                supabase.from('reviews').select('review_text, spoiler').eq('user_id', user.id).eq('game_id', game.id).maybeSingle(),
+                8_000,
+                'Load existing review'
+            );
+
+            const { error } = await withTimeout(
+                supabase.from('reviews').upsert(
+                    {
+                        user_id: user.id,
+                        game_id: game.id,
+                        rating: newRating,
+                        review_text: existing?.review_text ?? null,
+                        spoiler: existing?.spoiler ?? false,
+                        updated_at: new Date().toISOString(),
+                    },
+                    { onConflict: 'user_id,game_id' }
+                ),
+                8_000,
+                'Save rating'
+            );
+            if (error) throw error;
+
+            await withTimeout(
+                supabase.from('activity_events').insert({
+                    actor_id: user.id,
+                    type: 'rating',
+                    entity_id: game.id,
+                    metadata: { game_title: game.title, cover_url: game.coverUrl, rating: newRating },
+                }),
+                8_000,
+                'Create activity'
+            );
+        },
+        onSuccess: (_, newRating) => {
+            setPersistedRating(newRating);
+            qc.invalidateQueries({ queryKey: ['game-user-activity'] });
+            qc.invalidateQueries({ queryKey: ['profile-reviews'] });
+        },
+        onError: (error: Error) => {
+            setUserRating(persistedRating);
+            Alert.alert('Error', error.message);
+        },
     });
 
     if (isLoading) {
         return (
             <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" color={colors.purple[400]} />
+                <ActivityIndicator size="large" color={colors.neon.cyan} />
             </View>
         );
     }
@@ -112,153 +407,426 @@ export default function GameDetailScreen() {
 
     return (
         <View style={styles.container}>
-            <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
-                {/* Hero image */}
+            <Animated.ScrollView
+                contentContainerStyle={styles.scrollContent}
+                showsVerticalScrollIndicator={false}
+                onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: true })}
+                scrollEventThrottle={16}
+            >
+                {/* ===== HERO SECTION ===== */}
                 <View style={styles.heroContainer}>
+                    {/* Background image */}
                     {game.coverUrl ? (
-                        <Image source={{ uri: game.coverUrl.replace('t_cover_big', 't_screenshot_big') }} style={styles.hero} contentFit="cover" />
+                        <Animated.Image
+                            source={{ uri: game.coverUrl.replace('t_cover_big', 't_screenshot_huge') }}
+                            style={[
+                                styles.heroBackground,
+                                {
+                                    transform: [{
+                                        scale: scrollY.interpolate({
+                                            inputRange: [-100, 0, 100],
+                                            outputRange: [1.2, 1, 0.9],
+                                        }),
+                                    }],
+                                },
+                            ]}
+                        />
                     ) : (
                         <View style={styles.heroPlaceholder} />
                     )}
-                    <LinearGradient colors={['transparent', colors.bg.primary]} style={styles.heroGradient} />
+
+                    {/* Gradients */}
+                    <LinearGradient
+                        colors={['rgba(6,6,10,0.3)', 'rgba(6,6,10,0.6)', colors.bg.primary]}
+                        style={styles.heroGradient}
+                    />
+                    <HeroShimmer />
 
                     {/* Back button */}
-                    <SafeAreaView style={styles.backBtnWrapper}>
-                        <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-                            <Ionicons name="chevron-back" size={22} color={colors.white} />
+                    <SafeAreaView style={styles.backButtonContainer}>
+                        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                            <Ionicons name="chevron-back" size={24} color={colors.white} />
                         </TouchableOpacity>
                     </SafeAreaView>
                 </View>
 
-                {/* Content */}
+                {/* ===== CONTENT SECTION ===== */}
                 <View style={styles.content}>
-                    {/* Cover + title row */}
-                    <View style={styles.titleRow}>
-                        {game.coverUrl && (
-                            <Image source={{ uri: game.coverUrl }} style={styles.cover} contentFit="cover" />
-                        )}
-                        <View style={styles.titleInfo}>
-                            <Text style={styles.title}>{game.title}</Text>
+                    {/* Game cover + info row */}
+                    <View style={styles.gameHeader}>
+                        <View style={styles.coverWrapper}>
+                            <View style={styles.coverGlow} />
+                            {game.coverUrl ? (
+                                <Image
+                                    source={{ uri: game.coverUrl }}
+                                    style={styles.gameCover}
+                                    contentFit="cover"
+                                    transition={200}
+                                />
+                            ) : (
+                                <View style={styles.coverPlaceholder}>
+                                    <Ionicons name="game-controller" size={32} color={colors.text.muted} />
+                                </View>
+                            )}
+                        </View>
+
+                        <View style={styles.gameInfo}>
+                            <Text style={styles.gameTitle} numberOfLines={3}>{game.title}</Text>
                             {game.releaseDate && (
-                                <Text style={styles.meta}>{new Date(game.releaseDate).getFullYear()}</Text>
+                                <Text style={styles.gameYear}>{new Date(game.releaseDate).getFullYear()}</Text>
                             )}
                             {normalizedRating && (
-                                <View style={styles.ratingRow}>
-                                    <Ionicons name="star" size={14} color={colors.star} />
-                                    <Text style={styles.ratingText}>{normalizedRating} IGDB</Text>
+                                <View style={styles.communityRating}>
+                                    <Ionicons name="star" size={16} color={colors.star} />
+                                    <Text style={styles.ratingValue}>{normalizedRating}</Text>
+                                    <Text style={styles.ratingSource}>IGDB</Text>
                                 </View>
                             )}
                         </View>
                     </View>
 
-                    {/* Genre + platform chips */}
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsRow}>
-                        {[...game.genres, ...game.platforms].slice(0, 6).map((tag) => (
-                            <View key={tag} style={styles.chip}>
-                                <Text style={styles.chipText}>{tag}</Text>
-                            </View>
-                        ))}
-                    </ScrollView>
+                    {/* Genre chips */}
+                    {game.genres.length > 0 && (
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.genreRow}
+                        >
+                            {game.genres.map((genre) => (
+                                <GenreChip key={genre} genre={genre} />
+                            ))}
+                        </ScrollView>
+                    )}
+
+                    {/* Platforms */}
+                    {game.platforms.length > 0 && (
+                        <View style={styles.platformsRow}>
+                            {game.platforms.slice(0, 5).map((platform) => (
+                                <PlatformIndicator key={platform} platform={platform} />
+                            ))}
+                            {game.platforms.length > 5 && (
+                                <Text style={styles.morePlatforms}>+{game.platforms.length - 5}</Text>
+                            )}
+                        </View>
+                    )}
 
                     {/* Description */}
                     {game.description && (
-                        <Text style={styles.description}>{game.description}</Text>
+                        <View style={styles.descriptionSection}>
+                            <Text style={styles.descriptionText}>{game.description}</Text>
+                        </View>
                     )}
 
-                    {/* --- User Actions --- */}
+                    {/* ===== USER ACTIONS ===== */}
                     <View style={styles.actionsSection}>
                         <Text style={styles.sectionTitle}>Your Activity</Text>
 
                         {/* Status buttons */}
-                        <View style={styles.statusButtons}>
-                            {STATUS_ORDER.map((s) => {
-                                const isActive = currentStatus === s;
-                                return (
-                                    <TouchableOpacity
-                                        key={s}
-                                        style={[styles.statusBtn, isActive && { borderColor: colors.status[s], backgroundColor: colors.status[s] + '20' }]}
-                                        onPress={() => statusMutation.mutate(isActive ? null : s)}
-                                        activeOpacity={0.75}
-                                    >
-                                        <Ionicons name={STATUS_ICONS[s] as any} size={16} color={isActive ? colors.status[s] : colors.text.muted} />
-                                        <Text style={[styles.statusBtnText, isActive && { color: colors.status[s] }]}>
-                                            {STATUS_LABELS[s]}
-                                        </Text>
-                                    </TouchableOpacity>
-                                );
-                            })}
+                        <View style={styles.statusButtonsRow}>
+                            {STATUS_ORDER.map((status) => (
+                                <StatusButton
+                                    key={status}
+                                    status={status}
+                                    isActive={currentStatus === status}
+                                    onPress={() => statusMutation.mutate(currentStatus === status ? null : status)}
+                                    isLoading={statusMutation.isPending}
+                                />
+                            ))}
                         </View>
 
                         {/* Rating */}
                         <View style={styles.ratingSection}>
-                            <Text style={styles.ratingPrompt}>Your Rating</Text>
-                            <StarRating
-                                value={userRating}
-                                onChange={setUserRating}
-                                size={28}
-                            />
+                            <Text style={styles.ratingLabel}>Your Rating</Text>
+                            <View style={styles.ratingContainer}>
+                                <StarRating
+                                    value={userRating}
+                                    onChange={setUserRating}
+                                    onCommit={(next) => {
+                                        if (next === persistedRating || ratingMutation.isPending) return;
+                                        ratingMutation.mutate(next);
+                                    }}
+                                    size={36}
+                                />
+                            </View>
                         </View>
 
-                        {/* Write Review button */}
+                        {/* Write review button */}
                         <TouchableOpacity
-                            style={styles.reviewBtn}
+                            style={styles.reviewButton}
                             onPress={() => router.push({ pathname: '/review-editor', params: { gameId: game.id, gameTitle: game.title } })}
                             activeOpacity={0.85}
                         >
-                            <Ionicons name="create-outline" size={18} color={colors.purple[400]} />
-                            <Text style={styles.reviewBtnText}>Write a Review</Text>
+                            <Ionicons name="create-outline" size={20} color={colors.neon.pink} />
+                            <Text style={styles.reviewButtonText}>Write a Review</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
-            </ScrollView>
+            </Animated.ScrollView>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: colors.bg.primary },
-    loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.bg.primary },
-    scroll: { paddingBottom: spacing['2xl'] },
-    heroContainer: { height: 240, position: 'relative' },
-    hero: { width: '100%', height: '100%' },
-    heroPlaceholder: { width: '100%', height: '100%', backgroundColor: colors.bg.tertiary },
-    heroGradient: { position: 'absolute', bottom: 0, left: 0, right: 0, height: 120 },
-    backBtnWrapper: { position: 'absolute', top: 0, left: 0 },
-    backBtn: {
-        margin: spacing.base,
-        width: 36, height: 36, borderRadius: 18,
+    container: {
+        flex: 1,
+        backgroundColor: colors.bg.primary,
+    },
+    loadingContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: colors.bg.primary,
+    },
+    scrollContent: {
+        paddingBottom: spacing['3xl'],
+    },
+    errorText: {
+        color: colors.text.secondary,
+        padding: spacing.lg,
+        textAlign: 'center',
+    },
+
+    // Hero section
+    heroContainer: {
+        height: HERO_HEIGHT,
+        position: 'relative',
+        overflow: 'hidden',
+    },
+    heroBackground: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: SCREEN_WIDTH * 1.5,
+        marginLeft: -SCREEN_WIDTH * 0.25,
+    },
+    heroPlaceholder: {
+        ...StyleSheet.absoluteFillObject,
+        backgroundColor: colors.bg.tertiary,
+    },
+    heroGradient: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    heroShimmer: {
+        ...StyleSheet.absoluteFillObject,
+    },
+    backButtonContainer: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+    },
+    backButton: {
+        margin: spacing.md,
+        width: 40,
+        height: 40,
+        borderRadius: 20,
         backgroundColor: 'rgba(0,0,0,0.5)',
-        alignItems: 'center', justifyContent: 'center',
-    },
-    content: { paddingHorizontal: spacing.lg, paddingTop: spacing.md },
-    titleRow: { flexDirection: 'row', gap: spacing.base, marginBottom: spacing.md },
-    cover: { width: 80, height: 110, borderRadius: radius.md, marginTop: -40 },
-    titleInfo: { flex: 1, justifyContent: 'flex-end', gap: spacing.xs },
-    title: { fontSize: typography.size.xl, fontFamily: 'Inter_700Bold', color: colors.text.primary, lineHeight: 26 },
-    meta: { fontSize: typography.size.sm, fontFamily: 'Inter_400Regular', color: colors.text.secondary },
-    ratingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
-    ratingText: { fontSize: typography.size.sm, fontFamily: 'Inter_500Medium', color: colors.star },
-    chipsRow: { gap: spacing.xs, paddingBottom: spacing.base },
-    chip: { paddingHorizontal: spacing.base, paddingVertical: spacing.xs, backgroundColor: colors.bg.card, borderRadius: radius.full, borderWidth: 1, borderColor: colors.border },
-    chipText: { fontSize: typography.size.xs, fontFamily: 'Inter_400Regular', color: colors.text.secondary },
-    description: { fontSize: typography.size.base, fontFamily: 'Inter_400Regular', color: colors.text.secondary, lineHeight: 22, marginBottom: spacing.lg },
-    actionsSection: { backgroundColor: colors.bg.card, borderRadius: radius.lg, padding: spacing.lg, gap: spacing.base, borderWidth: 1, borderColor: colors.border },
-    sectionTitle: { fontSize: typography.size.md, fontFamily: 'Inter_600SemiBold', color: colors.text.primary },
-    statusButtons: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-    statusBtn: {
-        flexDirection: 'row', alignItems: 'center', gap: spacing.xs,
-        paddingHorizontal: spacing.md, paddingVertical: spacing.sm,
-        borderRadius: radius.full, borderWidth: 1.5, borderColor: colors.border,
-    },
-    statusBtnText: { fontSize: typography.size.sm, fontFamily: 'Inter_500Medium', color: colors.text.muted },
-    ratingSection: { gap: spacing.xs },
-    ratingPrompt: { fontSize: typography.size.sm, fontFamily: 'Inter_500Medium', color: colors.text.secondary },
-    reviewBtn: {
-        flexDirection: 'row', alignItems: 'center', gap: spacing.sm,
-        borderWidth: 1.5, borderColor: colors.purple[700],
-        borderRadius: radius.md, padding: spacing.base,
+        alignItems: 'center',
         justifyContent: 'center',
     },
-    reviewBtnText: { fontSize: typography.size.base, fontFamily: 'Inter_500Medium', color: colors.purple[400] },
-    errorText: { color: colors.text.secondary, padding: spacing.lg },
+
+    // Content
+    content: {
+        paddingHorizontal: spacing.lg,
+        paddingTop: spacing.lg,
+    },
+
+    // Game header
+    gameHeader: {
+        flexDirection: 'row',
+        gap: spacing.lg,
+        marginBottom: spacing.lg,
+    },
+    coverWrapper: {
+        position: 'relative',
+        marginTop: -60,
+    },
+    coverGlow: {
+        position: 'absolute',
+        top: -8,
+        left: -8,
+        right: -8,
+        bottom: -8,
+        borderRadius: radius.lg + 8,
+        backgroundColor: colors.neon.cyan,
+        opacity: 0.15,
+    },
+    gameCover: {
+        width: 100,
+        height: 140,
+        borderRadius: radius.lg,
+        borderWidth: 2,
+        borderColor: colors.border,
+    },
+    coverPlaceholder: {
+        width: 100,
+        height: 140,
+        borderRadius: radius.lg,
+        backgroundColor: colors.bg.tertiary,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: colors.border,
+    },
+    gameInfo: {
+        flex: 1,
+        justifyContent: 'flex-end',
+        gap: spacing.xs,
+    },
+    gameTitle: {
+        fontSize: typography.size['2xl'],
+        fontFamily: 'Inter_700Bold',
+        color: colors.text.primary,
+        lineHeight: 28,
+    },
+    gameYear: {
+        fontSize: typography.size.base,
+        fontFamily: 'Inter_400Regular',
+        color: colors.text.secondary,
+    },
+    communityRating: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        marginTop: spacing.xs,
+    },
+    ratingValue: {
+        fontSize: typography.size.lg,
+        fontFamily: 'Inter_700Bold',
+        color: colors.star,
+    },
+    ratingSource: {
+        fontSize: typography.size.xs,
+        fontFamily: 'Inter_400Regular',
+        color: colors.text.muted,
+    },
+
+    // Genres
+    genreRow: {
+        gap: spacing.sm,
+        marginBottom: spacing.lg,
+    },
+    genreChip: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.xs,
+        borderRadius: radius.full,
+        borderWidth: 1,
+    },
+    genreChipText: {
+        fontSize: typography.size.sm,
+        fontFamily: 'Inter_500Medium',
+        textTransform: 'uppercase',
+        letterSpacing: 0.5,
+    },
+
+    // Platforms
+    platformsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.md,
+        marginBottom: spacing.lg,
+    },
+    platformIndicator: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+    },
+    platformDot: {
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+    },
+    platformText: {
+        fontSize: typography.size.sm,
+        fontFamily: 'Inter_400Regular',
+        color: colors.text.secondary,
+    },
+    morePlatforms: {
+        fontSize: typography.size.sm,
+        fontFamily: 'Inter_400Regular',
+        color: colors.text.muted,
+    },
+
+    // Description
+    descriptionSection: {
+        marginBottom: spacing.xl,
+    },
+    descriptionText: {
+        fontSize: typography.size.base,
+        fontFamily: 'Inter_400Regular',
+        color: colors.text.secondary,
+        lineHeight: 24,
+    },
+
+    // Actions section
+    actionsSection: {
+        backgroundColor: colors.bg.card,
+        borderRadius: radius.xl,
+        borderWidth: 1,
+        borderColor: colors.border,
+        padding: spacing.lg,
+        gap: spacing.lg,
+    },
+    sectionTitle: {
+        fontSize: typography.size.lg,
+        fontFamily: 'Inter_600SemiBold',
+        color: colors.text.primary,
+    },
+
+    // Status buttons
+    statusButtonsRow: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: spacing.sm,
+    },
+    statusBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: radius.full,
+        borderWidth: 2,
+    },
+    statusBtnGlow: {
+        ...StyleSheet.absoluteFillObject,
+        borderRadius: radius.full,
+    },
+    statusBtnText: {
+        fontSize: typography.size.sm,
+        fontFamily: 'Inter_600SemiBold',
+    },
+
+    // Rating
+    ratingSection: {
+        alignItems: 'center',
+    },
+    ratingLabel: {
+        fontSize: typography.size.sm,
+        fontFamily: 'Inter_500Medium',
+        color: colors.text.secondary,
+        marginBottom: spacing.sm,
+    },
+    ratingContainer: {
+        paddingVertical: spacing.md,
+    },
+
+    // Review button
+    reviewButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+        paddingVertical: spacing.md,
+        borderRadius: radius.lg,
+        borderWidth: 2,
+        borderColor: colors.neon.pink,
+        backgroundColor: colors.neon.pink + '10',
+    },
+    reviewButtonText: {
+        fontSize: typography.size.base,
+        fontFamily: 'Inter_600SemiBold',
+        color: colors.neon.pink,
+    },
 });

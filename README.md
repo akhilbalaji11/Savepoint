@@ -103,6 +103,8 @@ In Supabase SQL Editor, run these in order:
 1. `supabase/migrations/001_profiles_follows.sql`
 2. `supabase/migrations/002_games_statuses_reviews.sql`
 3. `supabase/migrations/003_lists_activity.sql`
+4. `supabase/migrations/004_manual_games_insert_policy.sql`
+5. `supabase/migrations/005_play_sessions_first_time.sql`
 
 Optional: run `supabase/seed.sql` after migrations if you want demo game data.
 
@@ -171,7 +173,8 @@ Main tables:
 - `lists`
 - `list_items`
 - `activity_events`
-
+ 
+ 
 RLS is enabled, and user-owned resources are scoped to `auth.uid()`.
 
 ## Roadmap Boss Fights

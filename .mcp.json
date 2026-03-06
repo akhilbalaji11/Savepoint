@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "shadcn-ui": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@jpisnice/shadcn-ui-mcp-server"]
+    },
+    "@21st-dev/magic": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@21st-dev/magic@latest"],
+      "env": {
+        "API_KEY": "2ccd6545b491079bf770a258ae4b2dd3bff94cc4a0f32ab98dcd006851542f6d"
+      }
+    },
+    "playwright": {
+      "command": "cmd",
+      "args": ["/c", "npx", "-y", "@playwright/mcp"]
+    }
+  }
+}

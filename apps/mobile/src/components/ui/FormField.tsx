@@ -10,16 +10,24 @@ interface FormFieldProps extends TextInputProps {
 
 export function FormField({ label, error, secureTextEntry, ...props }: FormFieldProps) {
     const [showPassword, setShowPassword] = useState(false);
+    const [isFocused, setIsFocused] = useState(false);
 
     return (
         <View style={styles.container}>
             <Text style={styles.label}>{label}</Text>
-            <View style={[styles.inputWrapper, error ? styles.inputError : null]}>
+            <View
+                style={[
+                    styles.inputWrapper,
+                    error ? styles.inputError : isFocused && styles.inputFocused,
+                ]}
+            >
                 <TextInput
                     style={styles.input}
                     placeholderTextColor={colors.text.muted}
-                    selectionColor={colors.purple[400]}
+                    selectionColor={colors.neon.cyan}
                     secureTextEntry={secureTextEntry && !showPassword}
+                    onFocus={() => setIsFocused(true)}
+                    onBlur={() => setIsFocused(false)}
                     {...props}
                 />
                 {secureTextEntry && (
@@ -31,18 +39,25 @@ export function FormField({ label, error, secureTextEntry, ...props }: FormField
                         <Ionicons
                             name={showPassword ? 'eye-off' : 'eye'}
                             size={18}
-                            color={colors.text.muted}
+                            color={isFocused ? colors.neon.cyan : colors.text.muted}
                         />
                     </TouchableOpacity>
                 )}
             </View>
-            {error ? <Text style={styles.errorText}>{error}</Text> : null}
+            {error ? (
+                <View style={styles.errorContainer}>
+                    <Ionicons name="alert-circle" size={12} color={colors.neon.pink} />
+                    <Text style={styles.errorText}>{error}</Text>
+                </View>
+            ) : null}
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { gap: spacing.xs },
+    container: {
+        gap: spacing.xs,
+    },
     label: {
         fontSize: typography.size.sm,
         fontFamily: 'Inter_500Medium',
@@ -53,13 +68,26 @@ const styles = StyleSheet.create({
     inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: colors.bg.secondary,
+        backgroundColor: colors.bg.card,
         borderRadius: radius.md,
         borderWidth: 1.5,
         borderColor: colors.border,
         paddingHorizontal: spacing.base,
     },
-    inputError: { borderColor: colors.rose[500] },
+    inputFocused: {
+        borderColor: colors.neon.cyan,
+        shadowColor: colors.neon.cyan,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+    },
+    inputError: {
+        borderColor: colors.neon.pink,
+        shadowColor: colors.neon.pink,
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.2,
+        shadowRadius: 8,
+    },
     input: {
         flex: 1,
         fontSize: typography.size.base,
@@ -68,10 +96,18 @@ const styles = StyleSheet.create({
         paddingVertical: spacing.md,
         minHeight: 52,
     },
-    eyeBtn: { padding: spacing.xs },
+    eyeBtn: {
+        padding: spacing.xs,
+    },
+    errorContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.xs,
+        marginTop: 2,
+    },
     errorText: {
         fontSize: typography.size.xs,
         fontFamily: 'Inter_400Regular',
-        color: colors.rose[400],
+        color: colors.neon.pink,
     },
 });

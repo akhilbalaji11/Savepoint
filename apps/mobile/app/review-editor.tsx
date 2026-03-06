@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
     Alert,
     KeyboardAvoidingView, Platform,
@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { StarRating } from '../src/components/ui/StarRating';
 import { supabase } from '../src/lib/supabase';
+import { withTimeout } from '../src/lib/withTimeout';
 import { useAuthStore } from '../src/stores/authStore';
 import { colors, radius, spacing, typography } from '../src/styles/tokens';
 
@@ -28,37 +29,83 @@ export default function ReviewEditorScreen() {
     const [rating, setRating] = useState(0);
     const [reviewText, setReviewText] = useState('');
     const [spoiler, setSpoiler] = useState(false);
+    const hydratedRef = useRef(false);
+
+    const { data: existingReview } = useQuery({
+        queryKey: ['game-user-review', user?.id, gameId],
+        queryFn: async () => {
+            if (!user || !gameId) return null;
+            const { data, error } = await withTimeout(
+                supabase
+                    .from('reviews')
+                    .select('rating, review_text, spoiler')
+                    .eq('user_id', user.id)
+                    .eq('game_id', gameId)
+                    .maybeSingle(),
+                8_000,
+                'Load existing review'
+            );
+            if (error) throw error;
+            return data;
+        },
+        enabled: !!user && !!gameId,
+        staleTime: 1000 * 30,
+    });
+
+    useEffect(() => {
+        if (hydratedRef.current) return;
+        if (!existingReview) return;
+        setRating(Number(existingReview.rating ?? 0));
+        setReviewText(existingReview.review_text ?? '');
+        setSpoiler(existingReview.spoiler ?? false);
+        hydratedRef.current = true;
+    }, [existingReview]);
 
     const mutation = useMutation({
         mutationFn: async () => {
             if (!user || !gameId) throw new Error('Not authenticated');
             if (rating === 0) throw new Error('Please select a rating');
 
-            const { error } = await supabase.from('reviews').upsert({
-                user_id: user.id,
-                game_id: gameId,
-                rating,
-                review_text: reviewText.trim() || null,
-                spoiler,
-                updated_at: new Date().toISOString(),
-            }, { onConflict: 'user_id,game_id' });
+            const { error } = await withTimeout(
+                supabase.from('reviews').upsert({
+                    user_id: user.id,
+                    game_id: gameId,
+                    rating,
+                    review_text: reviewText.trim() || null,
+                    spoiler,
+                    updated_at: new Date().toISOString(),
+                }, { onConflict: 'user_id,game_id' }),
+                8_000,
+                'Save review'
+            );
             if (error) throw error;
 
             // Write activity event
-            await supabase.from('activity_events').insert({
-                actor_id: user.id,
-                type: reviewText.trim() ? 'review' : 'rating',
-                entity_id: gameId,
-                metadata: {
-                    game_title: gameTitle,
-                    rating,
-                    review_preview: reviewText.trim().slice(0, 100),
-                },
-            });
+            const { error: activityError } = await withTimeout(
+                supabase.from('activity_events').insert({
+                    actor_id: user.id,
+                    type: reviewText.trim() ? 'review' : 'rating',
+                    entity_id: gameId,
+                    metadata: {
+                        game_title: gameTitle,
+                        rating,
+                        review_preview: reviewText.trim().slice(0, 100),
+                    },
+                }),
+                8_000,
+                'Create review activity event'
+            );
+            if (activityError) {
+                console.warn('[Review Editor] activity event error:', activityError.message);
+            }
         },
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ['game-detail', gameId] });
+            qc.invalidateQueries({ queryKey: ['game-user-activity', user?.id, gameId] });
+            qc.invalidateQueries({ queryKey: ['game-user-review', user?.id, gameId] });
             qc.invalidateQueries({ queryKey: ['reviews', gameId] });
+            qc.invalidateQueries({ queryKey: ['profile-reviews', user?.id] });
+            qc.invalidateQueries({ queryKey: ['profile-stats', user?.id] });
             router.back();
         },
         onError: (err: Error) => Alert.alert('Error', err.message),
@@ -89,8 +136,8 @@ export default function ReviewEditorScreen() {
                     {/* Star rating */}
                     <View style={styles.ratingSection}>
                         <Text style={styles.label}>Your Rating</Text>
-                        <StarRating value={rating} onChange={setRating} size={36} />
-                        {rating === 0 && <Text style={styles.hint}>Tap a star to rate (required)</Text>}
+                        <StarRating value={rating} onChange={setRating} size={42} />
+                        {rating === 0 && <Text style={styles.hint}>Tap or drag across stars to rate (required)</Text>}
                     </View>
 
                     {/* Review text */}

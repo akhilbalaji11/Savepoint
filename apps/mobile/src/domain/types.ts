@@ -74,6 +74,7 @@ export interface PlaySession {
     userId: string;
     gameId: string;
     playedOn: string; // ISO date
+    firstTimePlay?: boolean;
     minutes?: number;
     platform?: string;
     notes?: string;

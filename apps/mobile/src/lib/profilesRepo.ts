@@ -1,5 +1,6 @@
 import type { Platform, Profile } from '../domain/types';
 import { supabase } from '../lib/supabase';
+import { withTimeout } from './withTimeout';
 
 function toProfile(row: Record<string, any>): Profile {
     return {
@@ -13,12 +14,46 @@ function toProfile(row: Record<string, any>): Profile {
 }
 
 export const profilesRepo = {
+    async ensureExists(user: { id: string; email?: string | null; user_metadata?: Record<string, any> | null }): Promise<Profile | null> {
+        const existing = await this.getById(user.id);
+        if (existing) return existing;
+
+        const displayName =
+            user.user_metadata?.display_name?.toString().trim()
+            || user.email?.split('@')[0]
+            || 'Gamer';
+
+        const { data, error } = await withTimeout(
+            supabase
+                .from('profiles')
+                .upsert({
+                    id: user.id,
+                    display_name: displayName,
+                    bio: null,
+                    avatar_url: null,
+                    favorite_platforms: [],
+                    updated_at: new Date().toISOString(),
+                }, { onConflict: 'id' })
+                .select()
+                .single(),
+            10_000,
+            'Ensure profile'
+        );
+
+        if (error) throw error;
+        return toProfile(data);
+    },
+
     async getById(id: string): Promise<Profile | null> {
-        const { data, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', id)
-            .single();
+        const { data, error } = await withTimeout(
+            supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', id)
+                .single(),
+            10_000,
+            'Load profile'
+        );
         if (error || !data) return null;
         return toProfile(data);
     },

@@ -2,6 +2,7 @@ import { Session, User } from '@supabase/supabase-js';
 import { create } from 'zustand';
 import type { Profile } from '../domain/types';
 import { supabase } from '../lib/supabase';
+import { withTimeout } from '../lib/withTimeout';
 
 interface AuthState {
     session: Session | null;
@@ -32,7 +33,13 @@ export const useAuthStore = create<AuthState>((set) => ({
 
     signOut: async () => {
         set({ isLoading: true });
-        await supabase.auth.signOut();
-        set({ session: null, user: null, profile: null, isLoading: false });
+        try {
+            const { error } = await withTimeout(supabase.auth.signOut(), 8_000, 'Sign out');
+            if (error) throw error;
+        } catch {
+            await supabase.auth.signOut({ scope: 'local' }).catch(() => undefined);
+        } finally {
+            set({ session: null, user: null, profile: null, isLoading: false });
+        }
     },
 }));

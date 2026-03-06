@@ -38,8 +38,17 @@ export default function RootLayout() {
         const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
             setSession(session);
             if (session?.user) {
-                const profile = await profilesRepo.getById(session.user.id);
-                setProfile(profile);
+                try {
+                    const profile = await profilesRepo.ensureExists({
+                        id: session.user.id,
+                        email: session.user.email,
+                        user_metadata: session.user.user_metadata as Record<string, any> | null,
+                    });
+                    setProfile(profile);
+                } catch (error: any) {
+                    console.warn('[Auth] Failed to ensure profile:', error?.message ?? error);
+                    setProfile(null);
+                }
             } else {
                 setProfile(null);
             }
@@ -49,7 +58,14 @@ export default function RootLayout() {
         supabase.auth.getSession().then(({ data: { session } }) => {
             setSession(session);
             if (session?.user) {
-                profilesRepo.getById(session.user.id).then(setProfile);
+                profilesRepo.ensureExists({
+                    id: session.user.id,
+                    email: session.user.email,
+                    user_metadata: session.user.user_metadata as Record<string, any> | null,
+                }).then(setProfile).catch((error: any) => {
+                    console.warn('[Auth] Initial profile ensure failed:', error?.message ?? error);
+                    setProfile(null);
+                });
             }
         });
 
