@@ -72,6 +72,9 @@ function ListCard({ list, onPress }: { list: GameList; onPress: () => void }) {
     const styles = createStyles(theme);
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const previewGames = (list.items ?? []).slice(0, 3);
+    const visibilityAccent = list.isPublic
+        ? (theme.isDark ? theme.colors.hero.quaternary : theme.colors.hero.tertiary)
+        : theme.colors.text.secondary;
 
     return (
         <TouchableOpacity
@@ -137,7 +140,7 @@ function ListCard({ list, onPress }: { list: GameList; onPress: () => void }) {
                         <Ionicons
                             name={list.isPublic ? 'globe-outline' : 'lock-closed-outline'}
                             size={12}
-                            color={list.isPublic ? theme.colors.hero.quaternary : theme.colors.text.secondary}
+                            color={visibilityAccent}
                         />
                         <Text style={list.isPublic ? styles.publicText : styles.privateText}>
                             {list.isPublic ? 'Public' : 'Private'}
@@ -155,6 +158,7 @@ export default function ListsScreen() {
     const qc = useQueryClient();
     const { theme } = useAppTheme();
     const styles = createStyles(theme);
+    const heroButtonAccent = theme.isDark ? theme.colors.white : theme.colors.text.primary;
 
     const [showEditor, setShowEditor] = useState(false);
     const [editingList, setEditingList] = useState<GameList | null>(null);
@@ -423,7 +427,7 @@ export default function ListsScreen() {
                         <Text style={styles.heroCopy}>active lists in your library</Text>
                     </View>
                     <TouchableOpacity style={styles.heroButton} onPress={openCreate} activeOpacity={0.9}>
-                        <Ionicons name="add" size={18} color={theme.colors.text.primary} />
+                        <Ionicons name="add" size={18} color={heroButtonAccent} />
                         <Text style={styles.heroButtonText}>New List</Text>
                     </TouchableOpacity>
                 </LinearGradient>
@@ -741,12 +745,14 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>['theme']) => StyleSh
         paddingHorizontal: 14,
         paddingVertical: 12,
         borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.82)',
+        backgroundColor: theme.isDark ? 'rgba(34, 21, 14, 0.86)' : 'rgba(255, 249, 242, 0.92)',
+        borderWidth: 1,
+        borderColor: theme.isDark ? 'rgba(255, 243, 229, 0.18)' : 'rgba(141, 80, 55, 0.12)',
     },
     heroButtonText: {
         fontSize: 13,
         fontFamily: 'Inter_700Bold',
-        color: theme.colors.text.primary,
+        color: theme.isDark ? theme.colors.white : theme.colors.text.primary,
     },
     centerState: {
         flex: 1,
@@ -912,7 +918,9 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>['theme']) => StyleSh
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 999,
-        backgroundColor: `${theme.colors.hero.quaternary}16`,
+        backgroundColor: theme.isDark ? `${theme.colors.hero.quaternary}18` : `${theme.colors.hero.secondary}12`,
+        borderWidth: 1,
+        borderColor: theme.isDark ? `${theme.colors.hero.quaternary}20` : `${theme.colors.hero.secondary}28`,
     },
     privatePill: {
         flexDirection: 'row',
@@ -926,7 +934,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>['theme']) => StyleSh
     publicText: {
         fontSize: 12,
         fontFamily: 'Inter_700Bold',
-        color: theme.colors.hero.quaternary,
+        color: theme.isDark ? theme.colors.hero.quaternary : theme.colors.hero.tertiary,
     },
     privateText: {
         fontSize: 12,
