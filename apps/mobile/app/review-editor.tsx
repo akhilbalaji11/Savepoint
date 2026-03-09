@@ -144,7 +144,7 @@ export default function ReviewEditorScreen() {
 
                         <View style={styles.panel}>
                             <View style={styles.panelHeader}>
-                                <View>
+                                <View style={styles.headerCopy}>
                                     <Text style={styles.sectionLabel}>Your Rating</Text>
                                     <Text style={styles.sectionCopy}>Tap or drag across the stars to set your score.</Text>
                                 </View>
@@ -163,7 +163,7 @@ export default function ReviewEditorScreen() {
 
                         <View style={styles.panel}>
                             <View style={styles.textHeader}>
-                                <View>
+                                <View style={styles.headerCopy}>
                                     <Text style={styles.sectionLabel}>Review Notes</Text>
                                     <Text style={styles.sectionCopy}>Keep it punchy or go long form. Either way, make it readable.</Text>
                                 </View>
@@ -290,7 +290,12 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>['theme']) => StyleSh
     panelHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        alignItems: 'flex-start',
         gap: 14,
+    },
+    headerCopy: {
+        flex: 1,
+        minWidth: 0,
     },
     sectionLabel: {
         fontSize: 13,
@@ -311,6 +316,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>['theme']) => StyleSh
         alignItems: 'center',
         gap: 6,
         alignSelf: 'flex-start',
+        flexShrink: 0,
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 999,
@@ -334,14 +340,20 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>['theme']) => StyleSh
     textHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
+        alignItems: 'flex-start',
         gap: 12,
         marginBottom: 14,
     },
     charCount: {
+        flexShrink: 0,
         fontSize: 12,
         fontFamily: 'Inter_600SemiBold',
         color: theme.colors.text.muted,
         alignSelf: 'flex-start',
+        paddingHorizontal: 10,
+        paddingVertical: 6,
+        borderRadius: 999,
+        backgroundColor: theme.colors.bg.secondary,
     },
     textInput: {
         minHeight: 210,

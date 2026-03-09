@@ -1,9 +1,10 @@
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold, useFonts } from '@expo-google-fonts/inter';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import type { Session } from '@supabase/supabase-js';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ThemeProvider, useAppTheme } from '../src/theme/appTheme';
@@ -34,6 +35,8 @@ export default function RootLayout() {
 function RootShell() {
     const { setSession, setProfile } = useAuthStore();
     const { theme } = useAppTheme();
+    const activeProfileRequestRef = useRef<Promise<void> | null>(null);
+    const activeProfileUserIdRef = useRef<string | null>(null);
 
     const [fontsLoaded] = useFonts({
         Inter_400Regular,
@@ -43,39 +46,52 @@ function RootShell() {
     });
 
     useEffect(() => {
-        // Listen for auth state changes
-        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+        const syncProfile = (session: Session | null) => {
             setSession(session);
-            if (session?.user) {
-                try {
-                    const profile = await profilesRepo.ensureExists({
-                        id: session.user.id,
-                        email: session.user.email,
-                        user_metadata: session.user.user_metadata as Record<string, any> | null,
-                    });
-                    setProfile(profile);
-                } catch (error: any) {
-                    console.warn('[Auth] Failed to ensure profile:', error?.message ?? error);
-                    setProfile(null);
-                }
-            } else {
+
+            if (!session?.user) {
+                activeProfileUserIdRef.current = null;
+                activeProfileRequestRef.current = null;
+                setProfile(null);
+                return;
+            }
+
+            const user = session.user;
+            if (activeProfileUserIdRef.current !== user.id) {
                 setProfile(null);
             }
+
+            if (activeProfileRequestRef.current && activeProfileUserIdRef.current === user.id) {
+                return;
+            }
+
+            activeProfileUserIdRef.current = user.id;
+            activeProfileRequestRef.current = profilesRepo.ensureExists({
+                id: user.id,
+                email: user.email,
+                user_metadata: user.user_metadata as Record<string, any> | null,
+            }).then((profile) => {
+                if (activeProfileUserIdRef.current === user.id) {
+                    setProfile(profile);
+                }
+            }).catch((error: any) => {
+                console.warn('[Auth] Failed to ensure profile:', error?.message ?? error);
+            }).finally(() => {
+                if (activeProfileUserIdRef.current === user.id) {
+                    activeProfileRequestRef.current = null;
+                }
+            });
+        };
+
+        // Listen for auth state changes
+        const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+            void event;
+            syncProfile(session);
         });
 
         // Get initial session
         supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            if (session?.user) {
-                profilesRepo.ensureExists({
-                    id: session.user.id,
-                    email: session.user.email,
-                    user_metadata: session.user.user_metadata as Record<string, any> | null,
-                }).then(setProfile).catch((error: any) => {
-                    console.warn('[Auth] Initial profile ensure failed:', error?.message ?? error);
-                    setProfile(null);
-                });
-            }
+            syncProfile(session);
         });
 
         return () => subscription.unsubscribe();

@@ -41,7 +41,7 @@ export default function ProfileSetupScreen() {
     const { pendingSignup, setPendingSignup, user, setProfile } = useAuthStore();
     const { theme } = useAppTheme();
     const styles = createStyles(theme);
-    const [avatarUri, setAvatarUri] = useState<string | null>(null);
+    const [avatarAsset, setAvatarAsset] = useState<ImagePicker.ImagePickerAsset | null>(null);
     const [selectedPlatforms, setSelectedPlatforms] = useState<Platform[]>([]);
     const [isLoading, setIsLoading] = useState(false);
 
@@ -100,7 +100,7 @@ export default function ProfileSetupScreen() {
         });
 
         if (!result.canceled) {
-            setAvatarUri(result.assets[0].uri);
+            setAvatarAsset(result.assets[0]);
         }
     };
 
@@ -118,9 +118,12 @@ export default function ProfileSetupScreen() {
 
             let avatarUrl: string | undefined;
 
-            if (avatarUri) {
+            if (avatarAsset?.uri) {
                 try {
-                    avatarUrl = await profilesRepo.uploadAvatar(activeUser.id, avatarUri);
+                    avatarUrl = await profilesRepo.uploadAvatar(activeUser.id, avatarAsset.uri, {
+                        fileName: avatarAsset.fileName,
+                        mimeType: avatarAsset.mimeType,
+                    });
                 } catch (uploadErr: any) {
                     console.warn('[Profile] Avatar upload failed, continuing without it:', uploadErr.message);
                 }
@@ -187,8 +190,8 @@ export default function ProfileSetupScreen() {
                                 end={{ x: 1, y: 1 }}
                                 style={styles.avatarRing}
                             >
-                                {avatarUri ? (
-                                    <Image source={{ uri: avatarUri }} style={styles.avatar} contentFit="cover" transition={150} />
+                                {avatarAsset?.uri ? (
+                                    <Image source={{ uri: avatarAsset.uri }} style={styles.avatar} contentFit="cover" transition={150} />
                                 ) : (
                                     <View style={styles.avatarPlaceholder}>
                                         <Ionicons name="person" size={34} color={theme.colors.white} />
