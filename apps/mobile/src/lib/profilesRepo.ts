@@ -1,47 +1,93 @@
+import { File as ExpoFile } from 'expo-file-system';
 import type { Platform, Profile } from '../domain/types';
 import { supabase } from '../lib/supabase';
 import { withTimeout } from './withTimeout';
+
+type EnsureProfileUser = {
+    id: string;
+    email?: string | null;
+    user_metadata?: Record<string, any> | null;
+};
+
+type AvatarUploadOptions = {
+    fileName?: string | null;
+    mimeType?: string | null;
+};
+
+const ensureProfileRequests = new Map<string, Promise<Profile | null>>();
+
+function normalizeAvatarUrl(value: string | null | undefined): string | undefined {
+    const trimmed = value?.trim();
+    if (!trimmed) return undefined;
+    return trimmed;
+}
+
+function toAvatarExtension(fileName?: string | null, mimeType?: string | null, uri?: string): string {
+    const fromFileName = fileName?.split('.').pop()?.toLowerCase();
+    const fromUri = uri?.split('?')[0]?.split('#')[0]?.split('.').pop()?.toLowerCase();
+    const fromMimeType = mimeType?.split('/').pop()?.toLowerCase();
+    const extension = fromFileName || fromUri || fromMimeType || 'jpg';
+
+    if (extension === 'jpeg') return 'jpg';
+    if (extension === 'heif') return 'heic';
+    return extension;
+}
 
 function toProfile(row: Record<string, any>): Profile {
     return {
         id: row.id,
         displayName: row.display_name,
         bio: row.bio ?? undefined,
-        avatarUrl: row.avatar_url ?? undefined,
+        avatarUrl: normalizeAvatarUrl(row.avatar_url),
         favoritePlatforms: (row.favorite_platforms ?? []) as Platform[],
         createdAt: row.created_at,
     };
 }
 
 export const profilesRepo = {
-    async ensureExists(user: { id: string; email?: string | null; user_metadata?: Record<string, any> | null }): Promise<Profile | null> {
-        const existing = await this.getById(user.id);
-        if (existing) return existing;
+    async ensureExists(user: EnsureProfileUser): Promise<Profile | null> {
+        const inFlight = ensureProfileRequests.get(user.id);
+        if (inFlight) return inFlight;
 
-        const displayName =
-            user.user_metadata?.display_name?.toString().trim()
-            || user.email?.split('@')[0]
-            || 'Gamer';
+        const request = (async () => {
+            const existing = await profilesRepo.getById(user.id);
+            if (existing) return existing;
 
-        const { data, error } = await withTimeout(
-            supabase
-                .from('profiles')
-                .upsert({
-                    id: user.id,
-                    display_name: displayName,
-                    bio: null,
-                    avatar_url: null,
-                    favorite_platforms: [],
-                    updated_at: new Date().toISOString(),
-                }, { onConflict: 'id' })
-                .select()
-                .single(),
-            10_000,
-            'Ensure profile'
-        );
+            const displayName =
+                user.user_metadata?.display_name?.toString().trim()
+                || user.email?.split('@')[0]
+                || 'Gamer';
 
-        if (error) throw error;
-        return toProfile(data);
+            const { data, error } = await withTimeout(
+                supabase
+                    .from('profiles')
+                    .insert({
+                        id: user.id,
+                        display_name: displayName,
+                        bio: null,
+                        avatar_url: null,
+                        favorite_platforms: [],
+                    })
+                    .select()
+                    .single(),
+                10_000,
+                'Ensure profile'
+            );
+
+            if (error) {
+                if (error.code === '23505') {
+                    return profilesRepo.getById(user.id);
+                }
+                throw error;
+            }
+
+            return toProfile(data);
+        })().finally(() => {
+            ensureProfileRequests.delete(user.id);
+        });
+
+        ensureProfileRequests.set(user.id, request);
+        return request;
     },
 
     async getById(id: string): Promise<Profile | null> {
@@ -50,11 +96,12 @@ export const profilesRepo = {
                 .from('profiles')
                 .select('*')
                 .eq('id', id)
-                .single(),
+                .maybeSingle(),
             10_000,
             'Load profile'
         );
-        if (error || !data) return null;
+        if (error) throw error;
+        if (!data) return null;
         return toProfile(data);
     },
 
@@ -75,20 +122,41 @@ export const profilesRepo = {
         return toProfile(data);
     },
 
-    async uploadAvatar(userId: string, uri: string): Promise<string> {
-        const ext = uri.split('.').pop() ?? 'jpg';
-        const fileName = `${userId}/avatar.${ext}`;
+    async uploadAvatar(userId: string, uri: string, options: AvatarUploadOptions = {}): Promise<string> {
+        const ext = toAvatarExtension(options.fileName, options.mimeType, uri);
+        const version = Date.now();
+        const fileName = `${userId}/avatar-${version}.${ext}`;
+        const contentType = options.mimeType ?? `image/${ext === 'jpg' ? 'jpeg' : ext}`;
+        const file = new ExpoFile(uri);
+        const bytes = await file.arrayBuffer();
 
-        const response = await fetch(uri);
-        const blob = await response.blob();
+        const { data: existingFiles } = await supabase.storage
+            .from('avatars')
+            .list(userId, { limit: 100 });
+        const filesToDelete = (existingFiles ?? []).map((file) => `${userId}/${file.name}`);
 
         const { error } = await supabase.storage
             .from('avatars')
-            .upload(fileName, blob, { upsert: true, contentType: `image/${ext}` });
+            .upload(fileName, bytes, { upsert: false, contentType });
         if (error) throw error;
+
+        if (filesToDelete.length > 0) {
+            await supabase.storage.from('avatars').remove(filesToDelete);
+        }
 
         const { data } = supabase.storage.from('avatars').getPublicUrl(fileName);
         return data.publicUrl;
+    },
+
+    async removeAvatar(userId: string): Promise<void> {
+        const { data: existingFiles } = await supabase.storage
+            .from('avatars')
+            .list(userId, { limit: 100 });
+        const filesToDelete = (existingFiles ?? []).map((file) => `${userId}/${file.name}`);
+        if (filesToDelete.length === 0) return;
+
+        const { error } = await supabase.storage.from('avatars').remove(filesToDelete);
+        if (error) throw error;
     },
 
     async getFollowerCount(userId: string): Promise<number> {

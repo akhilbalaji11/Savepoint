@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import * as ImagePicker from 'expo-image-picker';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { useState } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Image } from 'expo-image';
 
@@ -11,6 +12,7 @@ import { GameCard } from '../../../src/components/game/GameCard';
 import { ThemeBackdrop } from '../../../src/components/ui/ThemeBackdrop';
 import { ThemeModeToggle } from '../../../src/components/ui/ThemeModeToggle';
 import type { GameStatus } from '../../../src/domain/types';
+import { profilesRepo } from '../../../src/lib/profilesRepo';
 import { supabase } from '../../../src/lib/supabase';
 import { withTimeout } from '../../../src/lib/withTimeout';
 import { useAuthStore } from '../../../src/stores/authStore';
@@ -28,10 +30,11 @@ const TABS: Array<{ key: ProfileTabKey; label: string; icon: keyof typeof Ionico
 ];
 
 export default function ProfileScreen() {
-    const { profile, user, signOut } = useAuthStore();
+    const { profile, user, setProfile, signOut } = useAuthStore();
     const { theme } = useAppTheme();
     const router = useRouter();
     const [activeTab, setActiveTab] = useState<ProfileTabKey>('played');
+    const [isUpdatingPhoto, setIsUpdatingPhoto] = useState(false);
 
     const { data: statuses = [] } = useQuery({
         queryKey: ['profile-statuses', user?.id],
@@ -128,8 +131,82 @@ export default function ProfileScreen() {
         enabled: !!user,
     });
 
-    const displayName = profile?.displayName ?? user?.email?.split('@')[0] ?? 'Player';
+    const displayName =
+        profile?.displayName
+        ?? user?.user_metadata?.display_name?.toString().trim()
+        ?? user?.email?.split('@')[0]
+        ?? 'Player';
+    const avatarUrl =
+        profile?.avatarUrl
+        ?? user?.user_metadata?.avatar_url?.toString().trim()
+        ?? undefined;
     const statusItems = statuses.filter((status) => status.status === activeTab);
+
+    const handleChangePhoto = async () => {
+        if (!user || isUpdatingPhoto) return;
+
+        const result = await ImagePicker.launchImageLibraryAsync({
+            mediaTypes: 'images' as const,
+            allowsEditing: true,
+            aspect: [1, 1],
+            quality: 0.8,
+        });
+
+        if (result.canceled) return;
+
+        const asset = result.assets[0];
+        setIsUpdatingPhoto(true);
+
+        try {
+            const baseProfile = profile ?? await profilesRepo.ensureExists({
+                id: user.id,
+                email: user.email,
+                user_metadata: user.user_metadata as Record<string, any> | null,
+            });
+            const nextAvatarUrl = await profilesRepo.uploadAvatar(user.id, asset.uri, {
+                fileName: asset.fileName,
+                mimeType: asset.mimeType,
+            });
+            const nextProfile = await profilesRepo.upsert({
+                id: user.id,
+                displayName: baseProfile?.displayName ?? displayName,
+                bio: baseProfile?.bio,
+                avatarUrl: nextAvatarUrl,
+                favoritePlatforms: baseProfile?.favoritePlatforms ?? [],
+            });
+            setProfile(nextProfile);
+        } catch (error: any) {
+            Alert.alert('Photo update failed', error?.message ?? 'Could not update your profile photo.');
+        } finally {
+            setIsUpdatingPhoto(false);
+        }
+    };
+
+    const handleRemovePhoto = async () => {
+        if (!user || !avatarUrl || isUpdatingPhoto) return;
+
+        setIsUpdatingPhoto(true);
+        try {
+            const baseProfile = profile ?? await profilesRepo.ensureExists({
+                id: user.id,
+                email: user.email,
+                user_metadata: user.user_metadata as Record<string, any> | null,
+            });
+            await profilesRepo.removeAvatar(user.id);
+            const nextProfile = await profilesRepo.upsert({
+                id: user.id,
+                displayName: baseProfile?.displayName ?? displayName,
+                bio: baseProfile?.bio,
+                avatarUrl: undefined,
+                favoritePlatforms: baseProfile?.favoritePlatforms ?? [],
+            });
+            setProfile(nextProfile);
+        } catch (error: any) {
+            Alert.alert('Photo removal failed', error?.message ?? 'Could not remove your profile photo.');
+        } finally {
+            setIsUpdatingPhoto(false);
+        }
+    };
     const renderSurface = () => {
         if (activeTab === 'reviews') {
             return reviews.length === 0 ? (
@@ -205,15 +282,28 @@ export default function ProfileScreen() {
                         style={styles.hero}
                     >
                         <View style={styles.heroHeader}>
-                            <View style={styles.avatarRing}>
-                                {profile?.avatarUrl ? (
-                                    <Image source={{ uri: profile.avatarUrl }} style={styles.avatar} />
+                            <TouchableOpacity style={styles.avatarRing} onPress={handleChangePhoto} activeOpacity={0.9}>
+                                {avatarUrl ? (
+                                    <Image
+                                        source={{ uri: avatarUrl }}
+                                        style={styles.avatar}
+                                        contentFit="cover"
+                                        transition={150}
+                                        cachePolicy="memory-disk"
+                                    />
                                 ) : (
                                     <View style={styles.avatarPlaceholder}>
                                         <Ionicons name="person" size={26} color={theme.colors.white} />
                                     </View>
                                 )}
-                            </View>
+                                <View style={styles.avatarActionBadge}>
+                                    <Ionicons
+                                        name={isUpdatingPhoto ? 'sync' : 'camera'}
+                                        size={14}
+                                        color={theme.colors.white}
+                                    />
+                                </View>
+                            </TouchableOpacity>
                             <TouchableOpacity style={styles.settingsButton} onPress={signOut}>
                                 <Ionicons name="log-out-outline" size={18} color={theme.colors.white} />
                             </TouchableOpacity>
@@ -223,6 +313,18 @@ export default function ProfileScreen() {
                         <Text style={styles.heroBio}>
                             {profile?.bio || 'Curating a living diary of favorite bosses, abandoned side quests, and instant classics.'}
                         </Text>
+
+                        <View style={styles.actionRow}>
+                            <TouchableOpacity style={styles.photoActionButton} onPress={handleChangePhoto} disabled={isUpdatingPhoto}>
+                                <Ionicons name={isUpdatingPhoto ? 'sync' : 'image-outline'} size={16} color={theme.colors.white} />
+                                <Text style={styles.photoActionText}>{isUpdatingPhoto ? 'Updating photo...' : 'Change photo'}</Text>
+                            </TouchableOpacity>
+                            {avatarUrl ? (
+                                <TouchableOpacity style={styles.photoSecondaryButton} onPress={handleRemovePhoto} disabled={isUpdatingPhoto}>
+                                    <Ionicons name="trash-outline" size={16} color={theme.colors.white} />
+                                </TouchableOpacity>
+                            ) : null}
+                        </View>
 
                         <View style={styles.statRow}>
                             <StatPill label="Played" value={statuses.filter((item: any) => item.status === 'played').length} />
@@ -310,6 +412,7 @@ const styles = StyleSheet.create({
         borderRadius: 41,
         backgroundColor: 'rgba(255,255,255,0.22)',
         padding: 4,
+        position: 'relative',
     },
     avatar: {
         width: '100%',
@@ -322,6 +425,19 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: 'rgba(255,255,255,0.16)',
+    },
+    avatarActionBadge: {
+        position: 'absolute',
+        right: -2,
+        bottom: -2,
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(17,24,39,0.78)',
+        borderWidth: 2,
+        borderColor: 'rgba(255,255,255,0.22)',
     },
     settingsButton: {
         width: 42,
@@ -345,6 +461,34 @@ const styles = StyleSheet.create({
         lineHeight: 21,
         fontFamily: 'Inter_400Regular',
         maxWidth: 310,
+    },
+    actionRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 10,
+        marginTop: 16,
+    },
+    photoActionButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        paddingHorizontal: 14,
+        paddingVertical: 10,
+        borderRadius: 999,
+        backgroundColor: 'rgba(255,255,255,0.16)',
+    },
+    photoActionText: {
+        color: '#ffffff',
+        fontSize: 13,
+        fontFamily: 'Inter_600SemiBold',
+    },
+    photoSecondaryButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: 'rgba(255,255,255,0.16)',
     },
     statRow: {
         flexDirection: 'row',
