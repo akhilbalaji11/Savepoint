@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { LinearGradient } from 'expo-linear-gradient';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import {
     ActivityIndicator,
     Animated,
@@ -159,6 +160,8 @@ export default function ListsScreen() {
     const { theme } = useAppTheme();
     const styles = createStyles(theme);
     const heroButtonAccent = theme.isDark ? theme.colors.white : theme.colors.text.primary;
+    const router = useRouter();
+    const { editListId } = useLocalSearchParams<{ editListId?: string }>();
 
     const [showEditor, setShowEditor] = useState(false);
     const [editingList, setEditingList] = useState<GameList | null>(null);
@@ -248,6 +251,16 @@ export default function ListsScreen() {
         },
         enabled: !!user,
     });
+
+    useEffect(() => {
+        if (!editListId || lists.length === 0) return;
+
+        const targetList = lists.find((list) => list.id === editListId);
+        if (!targetList) return;
+
+        openEdit(targetList);
+        router.setParams({ editListId: undefined });
+    }, [editListId, lists, router]);
 
     const normalizedSearch = searchQuery.trim();
     const { data: gameOptions = [], isFetching: isSearchingGames } = useQuery<ListGameOption[]>({
@@ -408,7 +421,6 @@ export default function ListsScreen() {
             <SafeAreaView style={styles.safeArea}>
                 <View style={styles.header}>
                     <View style={styles.headerText}>
-                        <Text style={styles.kicker}>Curated Shelves</Text>
                         <Text style={styles.title}>Lists</Text>
                         <Text style={styles.subtitle}>Build detailed collections with a name, subheading, description, and real game membership.</Text>
                     </View>
@@ -686,15 +698,7 @@ const createStyles = (theme: ReturnType<typeof useAppTheme>['theme']) => StyleSh
     headerText: {
         flex: 1,
     },
-    kicker: {
-        fontSize: 12,
-        fontFamily: 'Inter_700Bold',
-        color: theme.colors.neon.orange,
-        textTransform: 'uppercase',
-        letterSpacing: 1,
-    },
     title: {
-        marginTop: 6,
         fontSize: 34,
         lineHeight: 38,
         fontFamily: 'Inter_700Bold',

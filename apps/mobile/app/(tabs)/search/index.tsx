@@ -467,10 +467,7 @@ export default function SearchScreen() {
             <ThemeBackdrop />
             <SafeAreaView style={styles.safeArea}>
                 <View style={styles.topRow}>
-                    <View>
-                        <Text style={[styles.kicker, { color: theme.colors.hero.secondary }]}>Studio + Character Search</Text>
-                        <Text style={[styles.headline, { color: theme.colors.text.primary }]}>Search</Text>
-                    </View>
+                    <Text style={[styles.headline, { color: theme.colors.text.primary }]}>Search</Text>
                     <ThemeModeToggle compact />
                 </View>
 
@@ -809,15 +806,8 @@ const styles = StyleSheet.create({
     topRow: {
         flexDirection: 'row',
         justifyContent: 'space-between',
-        alignItems: 'flex-start',
+        alignItems: 'center',
         marginBottom: 16,
-    },
-    kicker: {
-        fontSize: 12,
-        fontFamily: 'Inter_700Bold',
-        letterSpacing: 1.2,
-        textTransform: 'uppercase',
-        marginBottom: 6,
     },
     headline: {
         fontSize: 34,

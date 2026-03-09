@@ -216,7 +216,6 @@ export default function DiscoverScreen() {
                 <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
                     <View style={styles.topRow}>
                         <View>
-                            <Text style={[styles.kicker, { color: theme.colors.neon.orange }]}>Player One</Text>
                             <Text style={[styles.headline, { color: theme.colors.text.primary }]}>Discover</Text>
                             <Text style={[styles.copy, { color: theme.colors.text.secondary }]}>
                                 Curated shelves, social activity, and recommendation cards that feel closer to a launcher than a list.
@@ -323,14 +322,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'flex-start',
-        marginBottom: 6,
-    },
-    kicker: {
-        fontSize: 12,
-        fontFamily: 'Inter_700Bold',
-        letterSpacing: 1.2,
-        textTransform: 'uppercase',
-        marginBottom: 6,
+        marginBottom: 12,
     },
     headline: {
         fontSize: 34,

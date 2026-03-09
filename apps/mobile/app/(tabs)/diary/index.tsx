@@ -540,16 +540,8 @@ export default function DiaryScreen() {
             <ThemeBackdrop />
             <SafeAreaView style={styles.safeArea}>
                 <View style={styles.header}>
-                    <View style={styles.headerCopy}>
-                        <Text style={styles.title}>Diary</Text>
-                        <Text style={styles.subtitle}>Your gaming journey</Text>
-                    </View>
-                    <View style={styles.headerControls}>
-                        <ThemeModeToggle compact />
-                        <TouchableOpacity style={styles.addBtn} onPress={openCreateModal} activeOpacity={0.9}>
-                            <Ionicons name="add" size={22} color={theme.colors.bg.primary} />
-                        </TouchableOpacity>
-                    </View>
+                    <Text style={styles.title}>Diary</Text>
+                    <ThemeModeToggle compact />
                 </View>
 
                 <LinearGradient
@@ -803,43 +795,16 @@ const createStyles = (theme: AppThemeType) => StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',
-        paddingHorizontal: spacing.lg,
-        paddingTop: spacing.lg,
+        paddingHorizontal: 20,
+        paddingTop: 0,
         paddingBottom: spacing.md,
-        gap: spacing.base,
-    },
-    headerCopy: {
-        flex: 1,
-    },
-    headerControls: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.sm,
     },
     title: {
-        fontSize: typography.size['2xl'],
+        fontSize: 34,
+        lineHeight: 38,
         fontFamily: 'Inter_700Bold',
         color: theme.colors.text.primary,
-        letterSpacing: -0.5,
-    },
-    subtitle: {
-        marginTop: 4,
-        fontSize: typography.size.sm,
-        fontFamily: 'Inter_400Regular',
-        color: theme.colors.hero.primary,
-    },
-    addBtn: {
-        width: 44,
-        height: 44,
-        borderRadius: 22,
-        backgroundColor: theme.colors.hero.primary,
-        alignItems: 'center',
-        justifyContent: 'center',
-        shadowColor: theme.colors.hero.primary,
-        shadowOffset: { width: 0, height: 8 },
-        shadowOpacity: theme.isDark ? 0.28 : 0.14,
-        shadowRadius: 16,
-        elevation: 8,
+        letterSpacing: -1.3,
     },
     heroCard: {
         marginHorizontal: spacing.lg,

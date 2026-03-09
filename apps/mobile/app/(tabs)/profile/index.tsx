@@ -213,15 +213,21 @@ export default function ProfileScreen() {
                 <EmptySurface title="No reviews yet" subtitle="Rate a game and your review shelf will appear here." />
             ) : (
                 reviews.map((review: any) => (
-                    <View key={review.id} style={[styles.reviewCard, { backgroundColor: theme.colors.surface.glassStrong, borderColor: theme.colors.border }]}>
+                    <TouchableOpacity
+                        key={review.id}
+                        activeOpacity={0.9}
+                        onPress={() => router.push({ pathname: '/review-editor', params: { gameId: review.game.id, gameTitle: review.game.title } })}
+                        style={[styles.reviewCard, { backgroundColor: theme.colors.surface.glassStrong, borderColor: theme.colors.border }]}
+                    >
                         <Text style={[styles.reviewTitle, { color: theme.colors.text.primary }]}>{review.game.title}</Text>
-                        <Text style={[styles.reviewMeta, { color: theme.colors.hero.secondary }]}>
-                            {review.rating.toFixed(1)} stars
-                        </Text>
+                        <View style={styles.reviewMeta}>
+                            {renderRatingStars(review.rating)}
+                        </View>
                         <Text style={[styles.reviewBody, { color: theme.colors.text.secondary }]}>
                             {review.reviewText?.trim() || 'No written review yet.'}
                         </Text>
-                    </View>
+                        <Text style={[styles.reviewHint, { color: theme.colors.hero.secondary }]}>Tap to edit review</Text>
+                    </TouchableOpacity>
                 ))
             );
         }
@@ -231,11 +237,17 @@ export default function ProfileScreen() {
                 <EmptySurface title="No lists yet" subtitle="Curate shelves for your favorite genres, moods, or challenge runs." />
             ) : (
                 lists.map((list: any) => (
-                    <View key={list.id} style={[styles.listCard, { backgroundColor: theme.colors.surface.glassStrong, borderColor: theme.colors.border }]}>
+                    <TouchableOpacity
+                        key={list.id}
+                        activeOpacity={0.9}
+                        onPress={() => router.push({ pathname: '/(tabs)/lists', params: { editListId: list.id } })}
+                        style={[styles.listCard, { backgroundColor: theme.colors.surface.glassStrong, borderColor: theme.colors.border }]}
+                    >
                         <Text style={[styles.listTitle, { color: theme.colors.text.primary }]}>{list.title}</Text>
                         {!!list.description && <Text style={[styles.listBody, { color: theme.colors.text.secondary }]}>{list.description}</Text>}
                         <Text style={[styles.listMeta, { color: theme.colors.neon.orange }]}>{list.itemCount} games</Text>
-                    </View>
+                        <Text style={[styles.listHint, { color: theme.colors.hero.secondary }]}>Tap to edit list</Text>
+                    </TouchableOpacity>
                 ))
             );
         }
@@ -265,13 +277,35 @@ export default function ProfileScreen() {
         );
     }
 
+    function renderRatingStars(rating: number) {
+        return Array.from({ length: 5 }, (_, index) => {
+            const starNumber = index + 1;
+            let iconName: keyof typeof Ionicons.glyphMap = 'star-outline';
+
+            if (rating >= starNumber) {
+                iconName = 'star';
+            } else if (rating >= starNumber - 0.5) {
+                iconName = 'star-half';
+            }
+
+            return (
+                <Ionicons
+                    key={`${rating}-${starNumber}`}
+                    name={iconName}
+                    size={14}
+                    color={theme.colors.hero.secondary}
+                />
+            );
+        });
+    }
+
     return (
         <View style={[styles.container, { backgroundColor: theme.colors.bg.primary }]}>
             <ThemeBackdrop />
             <SafeAreaView style={styles.safeArea}>
                 <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
                     <View style={styles.topRow}>
-                        <Text style={[styles.topLabel, { color: theme.colors.neon.orange }]}>Player Card</Text>
+                        <Text style={[styles.topTitle, { color: theme.colors.text.primary }]}>Profile</Text>
                         <ThemeModeToggle compact />
                     </View>
 
@@ -387,13 +421,13 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 12,
+        marginBottom: 14,
     },
-    topLabel: {
-        fontSize: 12,
+    topTitle: {
+        fontSize: 34,
+        lineHeight: 38,
         fontFamily: 'Inter_700Bold',
-        textTransform: 'uppercase',
-        letterSpacing: 1.2,
+        letterSpacing: -1.3,
     },
     hero: {
         borderRadius: 30,
@@ -546,14 +580,22 @@ const styles = StyleSheet.create({
     },
     reviewMeta: {
         marginTop: 6,
-        fontSize: 12,
-        fontFamily: 'Inter_600SemiBold',
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 2,
     },
     reviewBody: {
         marginTop: 10,
         fontSize: 14,
         lineHeight: 21,
         fontFamily: 'Inter_400Regular',
+    },
+    reviewHint: {
+        marginTop: 12,
+        fontSize: 11,
+        fontFamily: 'Inter_700Bold',
+        textTransform: 'uppercase',
+        letterSpacing: 0.7,
     },
     listCard: {
         borderRadius: 24,
@@ -576,6 +618,13 @@ const styles = StyleSheet.create({
         fontFamily: 'Inter_700Bold',
         textTransform: 'uppercase',
         letterSpacing: 0.8,
+    },
+    listHint: {
+        marginTop: 12,
+        fontSize: 11,
+        fontFamily: 'Inter_700Bold',
+        textTransform: 'uppercase',
+        letterSpacing: 0.7,
     },
     emptyCard: {
         borderRadius: 26,

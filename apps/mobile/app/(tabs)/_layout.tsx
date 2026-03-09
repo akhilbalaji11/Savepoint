@@ -63,7 +63,7 @@ export default function TabsLayout() {
                 tabBarLabelStyle: {
                     fontFamily: 'Inter_600SemiBold',
                     fontSize: 10,
-                    marginTop: 4,
+                    marginTop: 8,
                     letterSpacing: 0.3,
                 },
             }}
@@ -122,12 +122,12 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         justifyContent: 'center',
         width: 46,
-        height: 32,
+        height: 34,
         borderRadius: 16,
     },
     glowDot: {
         position: 'absolute',
-        bottom: -5,
+        bottom: -2,
         width: 6,
         height: 6,
         borderRadius: 3,
