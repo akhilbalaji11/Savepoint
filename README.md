@@ -198,6 +198,17 @@ RLS is enabled, and user-owned resources are scoped to `auth.uid()`.
 - Integrate AI tag suggestions directly into review editor
 - Add richer profile stats (currently placeholder values)
 
+## Changelog
+
+### 2026-03-14
+
+- Fixed Discover mode toggle regression where users could get stuck in `Contrarian` when no contrarian recommendations were returned; toggle now remains available and empty-state copy is mode-aware.
+- Aligned discovery confidence/risk scoring across mobile and edge functions (`totalRated` + `feedbackSamples` weighting, and high-risk threshold `rating <= 65`) to remove cross-context scoring drift.
+- Aligned activity feed freshness decay across client and edge ranking logic to `48h` for deterministic ordering behavior.
+- Registered `circles` route in root Expo Router stack so the Discover "Backlog Parties" CTA navigates without runtime route errors.
+- Hardened `circle-challenges` `create_circle` flow: owner membership insert is now error-checked, and failed membership creation triggers best-effort circle rollback before returning an error.
+- Added explicit Supabase `error` handling for `Promise.all` query responses in discovery flows to prevent silent failures from propagating invalid data.
+
 ## License
 
 No license file is currently included.
