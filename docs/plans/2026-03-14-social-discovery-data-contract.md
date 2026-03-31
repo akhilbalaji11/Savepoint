@@ -1,4 +1,4 @@
-# Backlogd Social + Discovery Data Contract (v1)
+# Savepoint Social + Discovery Data Contract (v1)
 
 ## Scope
 

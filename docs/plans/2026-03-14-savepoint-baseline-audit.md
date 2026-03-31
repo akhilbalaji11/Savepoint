@@ -1,8 +1,8 @@
-# Backlogd Baseline Audit
+# Savepoint Baseline Audit
 
 ## Product Snapshot
 
-Backlogd is a mobile social game log focused on status tracking, reviews, diary sessions, custom lists, discovery, and activity feed behavior.
+Savepoint is a mobile social game log focused on status tracking, reviews, diary sessions, custom lists, discovery, and activity feed behavior.
 
 ## Stack
 

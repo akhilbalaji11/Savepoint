@@ -6,7 +6,7 @@ import { radius, spacing, typography, animation, STATUS_ICONS, STATUS_LABELS, PL
 
 export type ThemeMode = 'dark' | 'light';
 
-const STORAGE_KEY = 'backlogd-theme-mode';
+const STORAGE_KEY = 'savepoint-theme-mode';
 
 type WebStorageLike = {
     getItem: (key: string) => string | null;

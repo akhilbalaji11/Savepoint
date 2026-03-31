@@ -171,10 +171,10 @@ export function AuthBrand({ subtitle }: { subtitle: string }) {
             </View>
 
             <View style={styles.wordmarkWrap}>
-                <Text style={[styles.wordmarkDepthFar, { color: `${theme.colors.hero.tertiary}C8` }]}>Backlogd</Text>
-                <Text style={[styles.wordmarkDepthMid, { color: `${theme.colors.hero.secondary}D0` }]}>Backlogd</Text>
-                <Text style={[styles.wordmarkDepthNear, { color: `${theme.colors.hero.primary}E0` }]}>Backlogd</Text>
-                <Text style={[styles.wordmarkFront, { color: theme.colors.text.primary }]}>Backlogd</Text>
+                <Text style={[styles.wordmarkDepthFar, { color: `${theme.colors.hero.tertiary}C8` }]}>Savepoint</Text>
+                <Text style={[styles.wordmarkDepthMid, { color: `${theme.colors.hero.secondary}D0` }]}>Savepoint</Text>
+                <Text style={[styles.wordmarkDepthNear, { color: `${theme.colors.hero.primary}E0` }]}>Savepoint</Text>
+                <Text style={[styles.wordmarkFront, { color: theme.colors.text.primary }]}>Savepoint</Text>
             </View>
 
             <Text style={[styles.subheading, { color: theme.colors.text.secondary }]}>{subtitle}</Text>

@@ -1,4 +1,4 @@
-// Design tokens for Backlogd's ember-and-gold cinematic aesthetic.
+// Design tokens for Savepoint's ember-and-gold cinematic aesthetic.
 // Warm metallic surfaces, aged paper lights, and ember accents.
 
 export const colors = {

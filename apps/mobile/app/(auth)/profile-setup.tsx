@@ -66,7 +66,7 @@ export default function ProfileSetupScreen() {
         if (error) {
             if (showAlert) {
                 const message = /confirm|verified|verification/i.test(error.message)
-                    ? `Confirm the verification email sent to ${pendingSignup.email}, then tap Launch Backlogd again.`
+                    ? `Confirm the verification email sent to ${pendingSignup.email}, then tap Launch Savepoint again.`
                     : error.message;
                 Alert.alert('Finish sign in', message);
             }
@@ -177,7 +177,7 @@ export default function ProfileSetupScreen() {
                         <View style={styles.noticeCard}>
                             <Ionicons name="mail-open-outline" size={18} color={theme.colors.hero.secondary} />
                             <Text style={styles.noticeText}>
-                                Confirm the verification email sent to {pendingSignup.email}, then come back here and tap Launch Backlogd.
+                                Confirm the verification email sent to {pendingSignup.email}, then come back here and tap Launch Savepoint.
                             </Text>
                         </View>
                     ) : null}
@@ -274,7 +274,7 @@ export default function ProfileSetupScreen() {
                             style={styles.primaryGradient}
                         >
                             <Ionicons name="rocket" size={18} color={theme.colors.white} />
-                            <Text style={styles.primaryText}>{isLoading ? 'Saving...' : "Launch Backlogd"}</Text>
+                            <Text style={styles.primaryText}>{isLoading ? 'Saving...' : "Launch Savepoint"}</Text>
                         </LinearGradient>
                     </TouchableOpacity>
 

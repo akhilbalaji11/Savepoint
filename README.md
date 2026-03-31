@@ -1,8 +1,8 @@
-# Backlogd
+# Savepoint
 
 > The social quest log for gamers with 200 unplayed titles and confidence anyway.
 
-Backlogd is a mobile app for tracking what you play, what you plan to play, and what you insist you will totally finish this weekend.
+Savepoint is a mobile app for tracking what you play, what you plan to play, and what you insist you will totally finish this weekend.
 
 It is built with Expo + React Native, powered by Supabase, and pulls game metadata from IGDB through secure edge functions.
 
@@ -10,7 +10,7 @@ It is built with Expo + React Native, powered by Supabase, and pulls game metada
 
 Letterboxd is great for movies.
 Steam libraries are great for denial.
-Backlogd is the middle path.
+Savepoint is the middle path.
 
 You can:
 - Track statuses: `played`, `playing`, `backlog`, `wishlist`
@@ -60,7 +60,7 @@ What is scaffolded but not fully wired in UI yet:
 ## Repo Layout
 
 ```text
-Backlogd/
+Savepoint/
   apps/mobile/                 Expo app
     app/                       Router screens (auth, tabs, modals)
     src/
@@ -84,8 +84,8 @@ Backlogd/
 ### 1. Install dependencies
 
 ```powershell
-git clone https://github.com/akhilbalaji11/Backlogd.git
-cd Backlogd\apps\mobile
+git clone https://github.com/akhilbalaji11/Savepoint.git
+cd Savepoint\apps\mobile
 npm install
 ```
 
@@ -160,7 +160,7 @@ npm run test
 
 ## Recommendation System
 
-Backlogd uses a two-layer approach:
+Savepoint uses a two-layer approach:
 
 1. Deterministic recommender:
 - Builds user preference vectors from reviews/statuses

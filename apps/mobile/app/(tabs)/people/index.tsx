@@ -222,7 +222,7 @@ export default function PeopleScreen() {
                                                 {person.display_name || 'Player'}
                                             </Text>
                                             <Text style={[styles.personBio, { color: theme.colors.text.secondary }]} numberOfLines={1}>
-                                                {person.bio?.trim() || 'Backlogd player'}
+                                                {person.bio?.trim() || 'Savepoint player'}
                                             </Text>
                                         </View>
                                     </View>

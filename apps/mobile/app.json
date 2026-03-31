@@ -1,12 +1,12 @@
 {
   "expo": {
-    "name": "Backlogd",
-    "slug": "backlogd",
+    "name": "Savepoint",
+    "slug": "savepoint",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "scheme": "backlogd",
+    "scheme": "savepoint",
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
@@ -14,7 +14,7 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.backlogd.app",
+      "bundleIdentifier": "com.savepoint.app",
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Used to select and upload your profile avatar.",
         "ITSAppUsesNonExemptEncryption": false
@@ -26,7 +26,7 @@
         "monochromeImage": "./assets/android-icon-monochrome.png",
         "backgroundColor": "#0D1117"
       },
-      "package": "com.backlogd.app",
+      "package": "com.savepoint.app",
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ]
